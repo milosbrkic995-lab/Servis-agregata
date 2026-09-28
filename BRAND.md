@@ -12,6 +12,7 @@ value_props:
   - "Javno dostupan demonstracioni pregled sa jasno označenim ilustrativnim podacima"
 ctas:
   - "Zaboravili ste lozinku?"
+  - "Otvori aplikaciju u novom tabu"
   - "Vrati se na prijavu"
   - "Pogledajte demonstracioni primer"
 palette:

@@ -9,13 +9,22 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { authClient, signIn, signUp } from "@/lib/auth-client";
+import { authClient, getSession, signIn, signUp } from "@/lib/auth-client";
+import { describeAuthError } from "@/lib/errors";
 
-function translateAuthError(message: string): string {
-  const lower = message.toLowerCase();
-  if (lower.includes("already") || lower.includes("exists")) return "Nalog sa ovom adresom već postoji.";
-  if (lower.includes("password") || lower.includes("credential")) return "Adresa e-pošte ili lozinka nisu ispravni.";
-  if (lower.includes("email")) return "Proverite adresu e-pošte i pokušajte ponovo.";
+function translateAuthError(input: unknown): string {
+  const code = describeAuthError(input).code.toUpperCase();
+  if (code === "INVALID_EMAIL_OR_PASSWORD" || code === "INVALID_PASSWORD") {
+    return "Adresa e-pošte ili lozinka nisu ispravni. Proverite podatke i pokušajte ponovo.";
+  }
+  if (code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL") {
+    return "Nalog sa ovom adresom već postoji. Prijavite se umesto da pravite novi nalog.";
+  }
+  if (code === "INVALID_EMAIL") return "Proverite adresu e-pošte i pokušajte ponovo.";
+  if (code === "PASSWORD_TOO_SHORT") return "Lozinka mora imati najmanje 8 karaktera.";
+  if (code === "INVALID_ORIGIN" || code === "MISSING_OR_NULL_ORIGIN") {
+    return "Prijava trenutno ne radi sa ove adrese. Pokušajte ponovo malo kasnije.";
+  }
   return "Prijava nije uspela. Proverite podatke i pokušajte ponovo.";
 }
 
@@ -29,19 +38,37 @@ export function AuthScreen() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [standaloneLink, setStandaloneLink] = useState(false);
+
+  async function continueToDashboard() {
+    const session = await getSession();
+    if (session.error) throw session.error;
+    if (!session.data?.user) {
+      if (window.self !== window.top) {
+        setStandaloneLink(true);
+        setError("Prijava je prihvaćena, ali pregled nije sačuvao sesiju. Otvorite aplikaciju u novom tabu i prijavite se tamo.");
+      } else {
+        setError("Prijava nije mogla da se dovrši. Pokušajte ponovo.");
+      }
+      return;
+    }
+    router.replace("/dashboard");
+    router.refresh();
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setBusy(true);
     setError("");
     setMessage("");
+    setStandaloneLink(false);
     try {
       if (mode === "forgot") {
         const result = await authClient.requestPasswordReset({
           email,
           redirectTo: `${window.location.origin}/reset-password`,
         });
-        if (result.error) throw new Error(result.error.message);
+        if (result.error) throw result.error;
         setMessage("Ako nalog postoji, poslali smo uputstvo za promenu lozinke na vašu adresu.");
       } else if (mode === "signup") {
         const result = await signUp.email({
@@ -50,9 +77,8 @@ export function AuthScreen() {
           password,
           callbackURL: "/dashboard",
         });
-        if (result.error) throw new Error(result.error.message);
-        router.replace("/dashboard");
-        router.refresh();
+        if (result.error) throw result.error;
+        await continueToDashboard();
       } else {
         const result = await signIn.email({
           email: email.trim(),
@@ -60,12 +86,11 @@ export function AuthScreen() {
           rememberMe,
           callbackURL: "/dashboard",
         });
-        if (result.error) throw new Error(result.error.message);
-        router.replace("/dashboard");
-        router.refresh();
+        if (result.error) throw result.error;
+        await continueToDashboard();
       }
     } catch (caught) {
-      setError(translateAuthError(caught instanceof Error ? caught.message : ""));
+      setError(translateAuthError(caught));
     } finally {
       setBusy(false);
     }
@@ -120,19 +145,20 @@ export function AuthScreen() {
               <div className="grid gap-2"><Label htmlFor="account-email">Adresa e-pošte</Label><Input id="account-email" type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-12" /></div>
               {!isForgot ? (
                 <div className="grid gap-2">
-                  <div className="flex items-center justify-between gap-3"><Label htmlFor="account-password">Lozinka</Label>{!isSignup ? <Button type="button" variant="link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); }} className="h-auto p-0 text-xs font-medium">Zaboravili ste lozinku?</Button> : null}</div>
+                  <div className="flex items-center justify-between gap-3"><Label htmlFor="account-password">Lozinka</Label>{!isSignup ? <Button type="button" variant="link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 text-xs font-medium">Zaboravili ste lozinku?</Button> : null}</div>
                   <Input id="account-password" type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required className="h-12" />
                   {isSignup ? <p className="text-xs text-muted-foreground">Najmanje 8 karaktera.</p> : null}
                 </div>
               ) : null}
               {!isSignup && !isForgot ? <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted-foreground"><Checkbox checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked === true)} />Zapamti me na ovom uređaju</label> : null}
               {error ? <p role="alert" className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">{error}</p> : null}
+              {standaloneLink ? <Link href="/" target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 text-sm font-semibold text-primary">Otvori aplikaciju u novom tabu <ArrowRight size={16} /></Link> : null}
               {message ? <p role="status" className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-primary">{message}</p> : null}
               <Button type="submit" disabled={busy} className="mt-1 h-12 w-full gap-2 text-sm font-semibold">{busy ? "Sačekajte…" : isForgot ? "Pošalji link za promenu" : isSignup ? "Napravi nalog" : "Prijavi se"}{!busy ? <ArrowRight size={17} /> : null}</Button>
             </form>
             <div className="mt-5 border-t border-border pt-4 text-center text-sm text-muted-foreground">
-              {isForgot ? <Button type="button" variant="link" onClick={() => { setMode("signin"); setMessage(""); setError(""); }} className="h-auto p-0 font-semibold">Vrati se na prijavu</Button> : (
-                <p>{isSignup ? "Već imate nalog?" : "Nemate nalog?"}{" "}<Button type="button" variant="link" onClick={() => { setMode(isSignup ? "signin" : "signup"); setError(""); setMessage(""); }} className="h-auto p-0 font-semibold">{isSignup ? "Prijavite se" : "Napravite nalog"}</Button></p>
+              {isForgot ? <Button type="button" variant="link" onClick={() => { setMode("signin"); setMessage(""); setError(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">Vrati se na prijavu</Button> : (
+                <p>{isSignup ? "Već imate nalog?" : "Nemate nalog?"}{" "}<Button type="button" variant="link" onClick={() => { setMode(isSignup ? "signin" : "signup"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">{isSignup ? "Prijavite se" : "Napravite nalog"}</Button></p>
               )}
             </div>
           </div>
