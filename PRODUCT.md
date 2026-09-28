@@ -1,25 +1,32 @@
 <!-- Generated from .project/PROJECT.md by the engine — do not run `impeccable init`, which would interview a user who isn't here. Edit .project/PROJECT.md; this file is regenerated from it. -->
-# workspace
+# Servisni dnevnik agregata
 
 **Platform:** Responsive web — Next.js, React, Tailwind. shadcn/ui and lucide are installed and available; the direction decides whether they fit or whether this surface needs its own vocabulary.
 **Task mode:** Operate (pass as `--mode operate` to any script)
 
 ## What this is
 
-Napravi kompletnu, funkcionalnu aplikaciju za praćenje servisnih intervala agregata (generatora). Aplikacija treba da radi na Androidu i iPhone-u (mobilni veb / PWA koju korisnik može da doda na početni ekran telefona, sa push obaveštenjima). Namena i tok rada: - Korisnik se registruje i prijavljuje na aplikaciju (nalog sa e-mailom i lozinkom, plus opcija "zapamti me" i "zaboravljena lozinka"). - Nakon prijave, korisnik unosi podatke o svom agregatu: naziv/model agregata, proizvođač, serijski broj, snaga (kVA/kW), lokacija, i datum prvog paljenja (datum puštanja u rad). - Korisnik takođe može da podesi interval servisa (npr. svakih 6 meseci, svakih 12 meseci, ili na osnovu broja radnih sati) i podsetnik koliko dana pre servisa želi obaveštenje (npr. 7 dana pre). - Aplikacija automatski prati vreme proteklo od datuma prvog paljenja i kada dođe vreme za servis, korisniku stiže obaveštenje (push notifikacija i/ili e-mail) sa porukom da je vreme za servis tog agregata. - Korisnik vidi listu svih svojih agregata sa statusom: "Servis uskoro", "Servis danas", "Servis zakasnio" i datumom sledećeg servisa. - Kada se servis obavi, korisnik klikne "Servis obavljen" i datum sledećeg servisa se automatski pomera za izabrani interval. Vodi se istorija servisa (šta je urađeno i kada). Glavni ekrani: 1. Prijava / Registracija 2. Početna (dashboard) — lista agregata sa statusom i sledećim servisom 3. Dodavanje / izmena agregata — forma sa podacima i datumom prvog paljenja 4. Detalji agregata — istorija servisa, sledeći servis, dugme "Servis obavljen" 5. Notifikacije — spisak poslatih obaveštenja 6. Podešavanja — profil, interval servisa, podsetnik (X dana pre), uključivanje/isključivanje obaveštenja Tehnički zahtevi: - Korisnici i svi podaci moraju da se čuvaju (registracija i podaci o agregatima se pamte između poseta), tako da je potreban backend ili lokalno čuvanje podataka koji traje. - Zakazano/automatsko slanje obaveštenja kada servis dospe (pozadinski zadatak koji proverava datume). - Mobilno prilagođen dizajn (responsive), jednostavan i čist interfejs na srpskom jeziku, jer se koristi na telefonu. - Prijatna, profesionalna industrijska tema (plava/siva paleta), krupna i čitljiva slova, velika dugmad pogodna za upotrebu na terenu. Aplikacija treba da bude spremna za korišćenje, sa demo nalogom da se odmah vidi kako izgleda jedan agregat i obaveštenje o servisu.
+Mobilna veb-aplikacija na srpskom za evidenciju generatora, servisnih rokova i istorije održavanja.
+
+## What it enables
+
+Vlasnicima opreme i servisnim timovima olakšava da prate agregate, očitavaju radne sate i ne izgube pregled nad sledećim servisom.
+
+## Primary user
+
+Mali i srednji operateri objekata, upravnici i servisni tehničari koji vode evidenciju jednog ili više agregata.
+
+## What exists today
+
+Registracija, prijava, zapamti me, reset lozinke i odjava. - Privatna evidencija agregata sa podacima o modelu, snazi, lokaciji i datumu puštanja u rad. - Servisni interval po mesecima ili radnim satima, očitavanje brojila i servisna istorija. - Pregled stanja, in-app obaveštenja i opcionalna e-pošta koja se šalje kada aplikacija proveri rok. - PWA manifest, registracija service worker-a i kontrole za instaliranje i dozvolu obaveštenja. - Javno dostupan demonstracioni pregled sa jasno označenim ilustrativnim podacima.
 
 ## Brand commitments & durable constraints
 
-- **The user is present and IS choosing the visual direction.** Offer six materially different grounded directions through the design-picker command and STOP; the answer arrives as your next input and the chosen direction is then pinned, exactly as if the user had named it. Do not build a direction before asking, do not narrow the six to a favourite, and do not ask about anything else in the same breath — this one decision is the whole card.
-- **Ask ONLY when the direction is genuinely open**: this project has no committed visual world yet, or the user asked to redesign the whole app. A later change inside a committed world inherits it — asking again there is an interruption, not a courtesy.
-- **The roll decides which six you show, never which one wins.** Order your grounded directions by resonance, then use the assignment to pick the spread you present, so the lineup is not your own top six. Showing your favourites is the failure this whole mechanism exists to prevent.
-- **All six options ARE dealt challengers — every one, and nothing else.** Do not put your own grounded directions on the card, do not invent a seventh world, and do not reword a challenger into something safer. Your derivation still matters: it is how you FUSE the world the user picks with this product. It just does not get to decide the menu.
-- **Deal THREE rolls, then show the six that can carry this product.** Run the concept-seed command three times and pool every challenger it deals (about eighteen worlds). Drop the ones that cannot hold this product's actual task — a world whose grammar has nowhere to put the main thing the user does here is out, however beautiful its board. Keep the six strongest of what survives.
-- **Fitness is the filter, never taste.** "Can this world's own grammar carry capture, or a list, or a form, or whatever this product mainly does?" is the question. "Would I have picked this?" is not, and a lineup of the six calmest worlds is the ranking rut wearing fitness as a disguise. A striking world that genuinely fuses beats a tame one every time.
-- **The six must span at least THREE different material families.** Paper, ink and stationery are ONE family. If your surviving six are all screens, or all paper, you filtered by familiarity rather than by fit — go back to the pool.
-- **Every option carries that challenger's QUALITY BAR *board* URL as `preview_image`, verbatim.** An option without one is dropped by the command, because the board is the only proof the world came from the roll. Six worlds, six boards. If the roll dealt fewer than six, show what it dealt.
-- **Never generate images for the card.** The catalog already ships the artwork, and rendering sketches would make the user sit and wait to answer a question about which world — not which composition.
-- **Also give every option a `swatch`** of the real colours you would build that world in, plus ONE plain sentence saying what this world does for THIS product — "a control-room rhythm for capturing thoughts fast" tells them something; listing the ground colour twice does not. The card already labels the board as a reference, so never spend the sentence saying that: "reference world, not a mockup" inside the description is wasted words on every card.
+Veb-aplikacija, mobilno prilagođena, sav interfejs i tekst na srpskom (latinica). - Demonstracioni podaci nisu podaci korisnika. - Rokovi se proveravaju kada je aplikacija otvorena; ne tvrditi da se obaveštenja šalju dok je aplikacija zatvorena. - Čelično-plava i siva industrijska paleta, veliki terenski tasteri i čitljiv tekst.
+
+- **This project already HAS a committed visual world — do NOT offer a design picker.** `.project/DESIGN_SYSTEM.md` records a direction someone decided on, and the code, tokens and components are built around it. Read it, inherit it, and make the requested change inside it. Dealing six alternative worlds here offers to throw away a working design system nobody asked you to replace.
+- **Tailoring is not redesigning.** "Make it about my business", new copy, a different logo, swapped imagery, a brand colour — all of that lands INSIDE the committed world. Change what was asked for and leave the direction alone.
+- **The one exception is an explicit, whole-app redesign** — the user asking for a different look outright, not merely a change that happens to be large. Then the direction is open again and the picker applies. When they name the new direction themselves, that is the decision: pin it and build, still without a picker.
 - The user's own words always outrank the roll. A direction, palette, face or reference they named is pinned; the roll only decides what they left open.
 - Two review rounds is the budget, then ship and report open items honestly under the reviewer's own verdict — never announce a table with open findings as a pass.
 - Web fonts load through Fontsource, never `next/font/google` — this sandbox has no Google egress, so the fetch hangs at compile and the preview renders blank.
@@ -28,11 +35,15 @@ Napravi kompletnu, funkcionalnu aplikaciju za praćenje servisnih intervala agre
 
 ## Positioning
 
-Napravi kompletnu, funkcionalnu aplikaciju za praćenje servisnih intervala agregata (generatora). Aplikacija treba da radi na Androidu i iPhone-u (mobilni veb / PWA koju korisnik može da doda na početni ekran telefona, sa push obaveštenjima). Namena i tok rada: - Korisnik se registruje i prijavljuje na aplikaciju (nalog sa e-mailom i lozinkom, plus opcija "zapamti me" i "zaboravljena lozinka"). - Nakon prijave, korisnik unosi podatke o svom agregatu: naziv/model agregata, proizvođač, serijski broj, snaga (kVA/kW), lokacija, i datum prvog paljenja (datum puštanja u rad). - Korisnik takođe može da podesi interval servisa (npr. svakih 6 meseci, svakih 12 meseci, ili na osnovu broja radnih sati) i podsetnik koliko dana pre servisa želi obaveštenje (npr. 7 dana pre). - Aplikacija automatski prati vreme proteklo od datuma prvog paljenja i kada dođe vreme za servis, korisniku stiže obaveštenje (push notifikacija i/ili e-mail) sa porukom da je vreme za servis tog agregata. - Korisnik vidi listu svih svojih agregata sa statusom: "Servis uskoro", "Servis danas", "Servis zakasnio" i datumom sledećeg servisa. - Kada se servis obavi, korisnik klikne "Servis obavljen" i datum sledećeg servisa se automatski pomera za izabrani interval. Vodi se istorija servisa (šta je urađeno i kada). Glavni ekrani: 1. Prijava / Registracija 2. Početna (dashboard) — lista agregata sa statusom i sledećim servisom 3. Dodavanje / izmena agregata — forma sa podacima i datumom prvog paljenja 4. Detalji agregata — istorija servisa, sledeći servis, dugme "Servis obavljen" 5. Notifikacije — spisak poslatih obaveštenja 6. Podešavanja — profil, interval servisa, podsetnik (X dana pre), uključivanje/isključivanje obaveštenja Tehnički zahtevi: - Korisnici i svi podaci moraju da se čuvaju (registracija i podaci o agregatima se pamte između poseta), tako da je potreban backend ili lokalno čuvanje podataka koji traje. - Zakazano/automatsko slanje obaveštenja kada servis dospe (pozadinski zadatak koji proverava datume). - Mobilno prilagođen dizajn (responsive), jednostavan i čist interfejs na srpskom jeziku, jer se koristi na telefonu. - Prijatna, profesionalna industrijska tema (plava/siva paleta), krupna i čitljiva slova, velika dugmad pogodna za upotrebu na terenu. Aplikacija treba da bude spremna za korišćenje, sa demo nalogom da se odmah vidi kako izgleda jedan agregat i obaveštenje o servisu.
+Mobilna veb-aplikacija na srpskom za evidenciju generatora, servisnih rokova i istorije održavanja.
 
 ## Operating Context
 
 Responsive web, built unattended in one pass. Task mode: Operate.
+
+## Evidence on Hand
+
+Registracija, prijava, zapamti me, reset lozinke i odjava. - Privatna evidencija agregata sa podacima o modelu, snazi, lokaciji i datumu puštanja u rad. - Servisni interval po mesecima ili radnim satima, očitavanje brojila i servisna istorija. - Pregled stanja, in-app obaveštenja i opcionalna e-pošta koja se šalje kada aplikacija proveri rok. - PWA manifest, registracija service worker-a i kontrole za instaliranje i dozvolu obaveštenja. - Javno dostupan demonstracioni pregled sa jasno označenim ilustrativnim podacima.
 
 ## Product Principles
 

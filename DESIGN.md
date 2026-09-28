@@ -1,7 +1,36 @@
 ---
-name: "workspace"
-description: "Napravi kompletnu, funkcionalnu aplikaciju za praćenje servisnih intervala agregata (generatora). Aplikacija treba da radi na Androidu i iPhone-u (mobilni veb / PWA koju korisnik može da doda na početni ekran telefona, sa push obaveštenjima). Namena i tok rada: - Korisnik se registruje i prijavljuje na aplikaciju (nalog sa e-mailom i lozinkom, plus opcija \"zapamti me\" i \"zaboravljena lozinka\"). - Nakon prijave, korisnik unosi podatke o svom agregatu: naziv/model agregata, proizvođač, serijski broj, snaga (kVA/kW), lokacija, i datum prvog paljenja (datum puštanja u rad). - Korisnik takođe može da podesi interval servisa (npr. svakih 6 meseci, svakih 12 meseci, ili na osnovu broja radnih sati) i podsetnik koliko dana pre servisa želi obaveštenje (npr. 7 dana pre). - Aplikacija automatski prati vreme proteklo od datuma prvog paljenja i kada dođe vreme za servis, korisniku stiže obaveštenje (push notifikacija i/ili e-mail) sa porukom da je vreme za servis tog agregata. - Korisnik vidi listu svih svojih agregata sa statusom: \"Servis uskoro\", \"Servis danas\", \"Servis zakasnio\" i datumom sledećeg servisa. - Kada se servis obavi, korisnik klikne \"Servis obavljen\" i datum sledećeg servisa se automatski pomera za izabrani interval. Vodi se istorija servisa (šta je urađeno i kada). Glavni ekrani: 1. Prijava / Registracija 2. Početna (dashboard) — lista agregata sa statusom i sledećim servisom 3. Dodavanje / izmena agregata — forma sa podacima i datumom prvog paljenja 4. Detalji agregata — istorija servisa, sledeći servis, dugme \"Servis obavljen\" 5. Notifikacije — spisak poslatih obaveštenja 6. Podešavanja — profil, interval servisa, podsetnik (X dana pre), uključivanje/isključivanje obaveštenja Tehnički zahtevi: - Korisnici i svi podaci moraju da se čuvaju (registracija i podaci o agregatima se pamte između poseta), tako da je potreban backend ili lokalno čuvanje podataka koji traje. - Zakazano/automatsko slanje obaveštenja kada servis dospe (pozadinski zadatak koji proverava datume). - Mobilno prilagođen dizajn (responsive), jednostavan i čist interfejs na srpskom jeziku, jer se koristi na telefonu. - Prijatna, profesionalna industrijska tema (plava/siva paleta), krupna i čitljiva slova, velika dugmad pogodna za upotrebu na terenu. Aplikacija treba da bude spremna za korišćenje, sa demo nalogom da se odmah vidi kako izgleda jedan agregat i obaveštenje o servisu."
+name: "Servisni dnevnik agregata"
+description: "Mobilna veb-aplikacija na srpskom za evidenciju generatora, servisnih rokova i istorije održavanja."
+colors:
+  background: "oklch(0.965 0.012 245)"
+  foreground: "oklch(0.245 0.035 252)"
+  card: "oklch(0.995 0.004 245)"
+  card-foreground: "oklch(0.245 0.035 252)"
+  popover: "oklch(0.995 0.004 245)"
+  popover-foreground: "oklch(0.245 0.035 252)"
+  primary: "oklch(0.43 0.105 245)"
+  primary-foreground: "oklch(0.985 0.004 245)"
+  secondary: "oklch(0.925 0.018 245)"
+  secondary-foreground: "oklch(0.29 0.045 250)"
+  muted: "oklch(0.935 0.016 245)"
+  muted-foreground: "oklch(0.49 0.035 252)"
+  accent: "oklch(0.89 0.035 235)"
+  accent-foreground: "oklch(0.27 0.06 248)"
+  destructive: "oklch(0.52 0.19 27)"
+  border: "oklch(0.86 0.024 245)"
+  input: "oklch(0.86 0.024 245)"
+  ring: "oklch(0.48 0.09 245)"
+  sidebar-ring: "oklch(0.65 0.09 230)"
+  sidebar-border: "oklch(0.36 0.04 250)"
+  sidebar-accent-foreground: "oklch(0.96 0.008 245)"
+  sidebar-accent: "oklch(0.31 0.045 250)"
+  sidebar-primary-foreground: "oklch(0.22 0.04 252)"
+  sidebar-primary: "oklch(0.72 0.11 226)"
 typography:
+  display:
+    fontFamily: "system sans, bold and compact."
+  body:
+    fontFamily: "system sans with generous line spacing."
   mono:
     fontFamily: "ui-monospace, SFMono-Regular, \"SF Mono\", Menlo, Consolas, \"Liberation Mono\", monospace"
 rounded:
@@ -18,23 +47,35 @@ rounded:
 
 ## Overview
 
-**No visual direction has been committed for workspace yet.** The project is still on the starter's placeholder palette — shadcn's default neutral, every colour zero-chroma — so it is deliberately NOT listed above as a token set to respect. Treat this project as greenfield: decide the world, then write the palette into `globals.css`, and this file will state it from the next turn onward.
+Industrial service desk: a field-maintenance ledger on steel-blue surfaces, a navy instrument rail, status-stamped cards and oversized controls.
 
 ## Colors
 
 | Token | Value |
+| background | `oklch(0.965 0.012 245)` |
+| surface | `oklch(0.995 0.004 245)` |
+| text / muted | `oklch(0.245 0.035 252)` / `oklch(0.49 0.035 252)` |
+| border | `oklch(0.86 0.024 245)` |
+| primary | `oklch(0.43 0.105 245)` |
+| accent | `oklch(0.89 0.035 235)` |
+| success / warning / danger | `oklch(0.57 0.08 184)` / `oklch(0.69 0.11 76)` / `oklch(0.52 0.19 27)` |
+
+Declared in `globals.css` as `--color-*` and mirrored in the frontmatter. Use the token, never a raw hex.
 
 ## Typography
 
-- Headings:
-- Body:
+- Headings: system sans, bold and compact.
+- Body: system sans with generous line spacing.
+- Technical readings: system monospace.
 
+- Display: `system sans, bold and compact.`
+- Body: `system sans with generous line spacing.`
 - Mono: `ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace`
 
 ## Layout
 
-- Radius / shadow / spacing rhythm:
-- Shared components:
+- Radius / shadow / spacing rhythm: 10px cards, fine steel borders, restrained shadow, 4px spacing rhythm.
+- Shared components: themed shadcn controls, status badges, generator cards, mobile bottom navigation.
 
 ## Shapes
 
@@ -42,7 +83,9 @@ Radii: `sm` calc(var(--radius) * 0.6), `md` calc(var(--radius) * 0.8), `lg` 0.62
 
 ## Do's and Don'ts
 
+- Voice: Serbian Latin, direct and operational. Use clear maintenance terms, short labels and truthful reminder descriptions.
+
 - Do load faces through Fontsource, not `next/font/google`.
-- Do write the direction's palette into `globals.css` as the token block; keep the token NAMES, replace the values.
+- Don't introduce a colour or radius that isn't a token above.
 - Don't use gradient text, or a purple/violet gradient as the brand signal.
 - Don't use bounce or elastic easing; real objects decelerate smoothly.
