@@ -1,10 +1,10 @@
-// Placeholder home page — REPLACE this with the app you were asked to build.
-// The surrounding scaffolding (layout, badge, SEO, config, deps) is already in
-// place, so you only need to build the app-specific pages and components.
-export default function Home() {
-  return (
-    <main className="flex min-h-dvh items-center justify-center">
-      <p className="text-sm text-black/40">Starting your app…</p>
-    </main>
-  );
+import { redirect } from "next/navigation";
+
+import { AuthScreen } from "@/components/auth/auth-screen";
+import { getUser } from "@/lib/auth";
+
+export default async function HomePage() {
+  const user = await getUser();
+  if (user) redirect("/dashboard");
+  return <AuthScreen />;
 }
