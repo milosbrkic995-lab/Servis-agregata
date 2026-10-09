@@ -19,19 +19,36 @@ export async function GET() {
       ok: true,
       result: result.rows,
     });
-  } catch (error) {
-    console.error("[DB-CHECK]", error);
+  } catch (error: unknown) {
+    const err = error as {
+      message?: string;
+      cause?: {
+        message?: string;
+        code?: string;
+        detail?: string;
+      };
+      code?: string;
+      detail?: string;
+    };
+
+    console.error("[DB-CHECK]", {
+      message: err.message,
+      code: err.code,
+      detail: err.detail,
+      causeMessage: err.cause?.message,
+      causeCode: err.cause?.code,
+      causeDetail: err.cause?.detail,
+    });
 
     return NextResponse.json(
       {
         ok: false,
-        error:
-          error instanceof Error
-            ? error.message
-            : "Unknown database error",
+        message: err.message,
+        code: err.code ?? err.cause?.code ?? null,
+        detail: err.detail ?? err.cause?.detail ?? null,
+        cause: err.cause?.message ?? null,
       },
       { status: 500 },
     );
   }
 }
-
