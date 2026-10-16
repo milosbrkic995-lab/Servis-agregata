@@ -100,14 +100,15 @@ export async function getDashboardData() {
 
       const title = status === "overdue" ? "Servis je zakasnio" : status === "today" ? "Servis je na redu danas" : "Servis se približava";
       const body = `${generator.name} · ${serviceCountdown(mapped, today)}.`;
-      await db.insert(appNotifications).values({
-        userId: currentUser.id,
-        generatorId: generator.id,
-        kind: "service",
-        title,
-        body,
-        dueDate,
-      });
+await db.insert(appNotifications).values({
+  id: crypto.randomUUID(),
+  userId: currentUser.id,
+  generatorId: generator.id,
+  kind: "service",
+  title,
+  body,
+  dueDate,
+});
 
       if (settings.emailNotificationsEnabled && currentUser.email) {
         await sendEmail({
