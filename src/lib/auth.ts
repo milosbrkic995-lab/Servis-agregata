@@ -190,7 +190,7 @@ export const auth = betterAuth({
   emailVerification: {
     // Send the confirmation the moment someone signs up, rather than waiting for
     // them to ask for it.
-    sendOnSignUp: true,
+    sendOnSignUp: false,
     autoSignInAfterVerification: true,
     sendVerificationEmail: async ({ user, url }) => {
       // Deliberately NOT sendEmailOrThrow. Sign-up has already succeeded by this

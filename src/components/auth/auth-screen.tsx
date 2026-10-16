@@ -10,18 +10,16 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient, getSession, signIn, signUp } from "@/lib/auth-client";
+import { validateClientPibAccess, linkClientPibAccess } from "@/app/client-access-actions";
 import { describeAuthError } from "@/lib/errors";
 
 function translateAuthError(input: unknown): string {
   const code = describeAuthError(input).code.toUpperCase();
   if (code === "INVALID_EMAIL_OR_PASSWORD" || code === "INVALID_PASSWORD") {
-    return "Adresa e-pošte ili lozinka nisu ispravni. Proverite podatke i pokušajte ponovo.";
+    return "Email ili lozinka nisu ispravni. Proverite podatke i pokušajte ponovo.";
   }
-  if (code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL") {
-    return "Nalog sa ovom adresom već postoji. Prijavite se umesto da pravite novi nalog.";
-  }
-  if (code === "INVALID_EMAIL") return "Proverite adresu e-pošte i pokušajte ponovo.";
-  if (code === "PASSWORD_TOO_SHORT") return "Lozinka mora imati najmanje 8 karaktera.";
+  if (code === "INVALID_EMAIL") return "Proverite email adresu i pokušajte ponovo.";
+  if (code === "PASSWORD_TOO_SHORT") return "PIB nije ispravan ili je kraći od potrebnog minimuma.";
   if (code === "INVALID_ORIGIN" || code === "MISSING_OR_NULL_ORIGIN") {
     return "Prijava trenutno ne radi sa ove adrese. Pokušajte ponovo malo kasnije.";
   }
@@ -30,10 +28,10 @@ function translateAuthError(input: unknown): string {
 
 export function AuthScreen() {
   const router = useRouter();
-  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"signin" | "client" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [pib, setPib] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -46,7 +44,7 @@ export function AuthScreen() {
     if (!session.data?.user) {
       if (window.self !== window.top) {
         setStandaloneLink(true);
-        setError("Prijava je prihvaćena, ali pregled nije sačuvao sesiju. Otvorite aplikaciju u novom tabu i prijavite se tamo.");
+        setError("Prijava je prihvaćena, ali pregledač nije sačuvao sesiju. Otvorite aplikaciju u novom tabu i prijavite se tamo.");
       } else {
         setError("Prijava nije mogla da se dovrši. Pokušajte ponovo.");
       }
@@ -63,25 +61,52 @@ export function AuthScreen() {
     setMessage("");
     setStandaloneLink(false);
     try {
+      const normalizedEmail = email.trim().toLowerCase();
+
       if (mode === "forgot") {
         const result = await authClient.requestPasswordReset({
-          email,
+          email: normalizedEmail,
           redirectTo: `${window.location.origin}/reset-password`,
         });
         if (result.error) throw result.error;
-        setMessage("Ako nalog postoji, poslali smo uputstvo za promenu lozinke na vašu adresu.");
-      } else if (mode === "signup") {
-        const result = await signUp.email({
-          name: name.trim(),
-          email: email.trim(),
-          password,
-          callbackURL: "/dashboard",
-        });
-        if (result.error) throw result.error;
+        setMessage("Ako administratorski nalog postoji, poslali smo uputstvo za promenu lozinke na tu adresu.");
+      } else if (mode === "client") {
+        const access = await validateClientPibAccess(normalizedEmail, pib);
+        if (!access.ok) {
+          setError("Email i PIB se ne poklapaju sa podacima koje je administracija unela. Proverite unos ili kontaktirajte J&B POWER.");
+          return;
+        }
+
+        if (access.accountExists) {
+          const result = await signIn.email({
+            email: normalizedEmail,
+            password: pib.trim().replace(/\s+/g, ""),
+            rememberMe,
+            callbackURL: "/dashboard",
+          });
+          if (result.error) {
+            setError("Za ovu email adresu već postoji nalog sa ranijim načinom prijave. Obratite se J&B POWER da pripremi pristup emailom i PIB-om.");
+            return;
+          }
+        } else {
+          const result = await signUp.email({
+            name: access.name,
+            email: normalizedEmail,
+            password: pib.trim().replace(/\s+/g, ""),
+            callbackURL: "/dashboard",
+          });
+          if (result.error) throw result.error;
+        }
+
+        const linked = await linkClientPibAccess(pib);
+        if (!linked.ok) {
+          setError(linked.message || "Nije moguće povezati nalog sa kartonom komitenta.");
+          return;
+        }
         await continueToDashboard();
       } else {
         const result = await signIn.email({
-          email: email.trim(),
+          email: normalizedEmail,
           password,
           rememberMe,
           callbackURL: "/dashboard",
@@ -96,7 +121,7 @@ export function AuthScreen() {
     }
   }
 
-  const isSignup = mode === "signup";
+  const isClient = mode === "client";
   const isForgot = mode === "forgot";
 
   return (
@@ -105,10 +130,7 @@ export function AuthScreen() {
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(var(--sidebar-border) 1px, transparent 1px), linear-gradient(90deg, var(--sidebar-border) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
         <div className="relative flex items-center gap-3">
           <span className="flex size-11 items-center justify-center rounded-md bg-sidebar-primary text-sidebar-primary-foreground"><Bolt size={22} /></span>
-          <span>
-            <span className="block text-sm font-bold tracking-[0.12em]">SERVISNI DNEVNIK</span>
-            <span className="mt-1 block text-xs text-muted-foreground">Evidencija agregata</span>
-          </span>
+          <span><span className="block text-sm font-bold tracking-[0.12em]">SERVISNI DNEVNIK</span><span className="mt-1 block text-xs text-muted-foreground">Evidencija agregata</span></span>
         </div>
         <div className="relative my-auto max-w-xl py-16">
           <p className="font-mono text-xs font-semibold uppercase tracking-[0.2em] text-sidebar-primary">PREGLED ODRŽAVANJA · 01</p>
@@ -116,10 +138,7 @@ export function AuthScreen() {
           <p className="mt-5 max-w-lg text-base leading-7 text-muted-foreground">Pratite agregate, radne sate i istoriju servisa na jednom mestu — spremno za upotrebu na terenu.</p>
           <div className="mt-9 grid max-w-lg gap-3">
             {["Evidencija opreme i lokacija", "Servisni rokovi po datumu ili satima", "Pregled zabeleženih intervencija"].map((item) => (
-              <div key={item} className="flex min-h-12 items-center gap-3 rounded-md border border-sidebar-border bg-sidebar/75 px-4 py-3 text-sm">
-                <span className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-sidebar-primary/15 text-sidebar-primary"><Check size={14} /></span>
-                {item}
-              </div>
+              <div key={item} className="flex min-h-12 items-center gap-3 rounded-md border border-sidebar-border bg-sidebar/75 px-4 py-3 text-sm"><span className="flex size-6 shrink-0 items-center justify-center rounded-sm bg-sidebar-primary/15 text-sidebar-primary"><Check size={14} /></span>{item}</div>
             ))}
           </div>
         </div>
@@ -128,42 +147,35 @@ export function AuthScreen() {
 
       <section className="flex min-h-dvh items-center justify-center px-5 py-8 sm:px-8">
         <div className="w-full max-w-md">
-          <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground"><Bolt size={20} /></span>
-            <span>
-              <span className="block text-xs font-bold tracking-[0.12em]">SERVISNI DNEVNIK</span>
-              <span className="mt-0.5 block text-xs text-muted-foreground">Evidencija agregata</span>
-            </span>
-          </div>
+          <div className="mb-8 flex items-center gap-3 lg:hidden"><span className="flex size-10 items-center justify-center rounded-md bg-primary text-primary-foreground"><Bolt size={20} /></span><span><span className="block text-xs font-bold tracking-[0.12em]">SERVISNI DNEVNIK</span><span className="mt-0.5 block text-xs text-muted-foreground">Evidencija agregata</span></span></div>
           <div className="rounded-xl border border-border bg-card p-5 shadow-sm sm:p-8">
             <div className="mb-6 flex size-11 items-center justify-center rounded-md border border-primary/15 bg-primary/5 text-primary"><ShieldCheck size={22} /></div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{isForgot ? "OPORAVAK NALOGA" : isSignup ? "NOVI NALOG" : "PRISTUP EVIDENCIJI"}</p>
-            <h2 className="mt-2 text-2xl font-bold tracking-tight">{isForgot ? "Zaboravljena lozinka" : isSignup ? "Napravite nalog" : "Dobro došli"}</h2>
-            <p className="mt-2 text-sm leading-6 text-muted-foreground">{isForgot ? "Poslaćemo vam link za postavljanje nove lozinke." : isSignup ? "Unesite podatke da biste započeli evidenciju opreme." : "Prijavite se da biste nastavili do svojih agregata."}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{isForgot ? "OPORAVAK ADMIN NALOGA" : isClient ? "PORTAL KOMITENTA" : "ADMINISTRATORSKI PRISTUP"}</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight">{isForgot ? "Zaboravljena lozinka" : isClient ? "Prijava komitenta" : "Dobro došli"}</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">{isForgot ? "Poslaćemo uputstvo za promenu administratorske lozinke." : isClient ? "Unesite email i PIB firme koje je J&B POWER uneo u karton komitenta. Nalog se otvara automatski pri prvoj prijavi." : "Prijavite se administratorskim emailom i lozinkom."}</p>
             <form onSubmit={submit} className="mt-6 grid gap-4">
-              {isSignup ? <div className="grid gap-2"><Label htmlFor="account-name">Ime i prezime</Label><Input id="account-name" autoComplete="name" value={name} onChange={(event) => setName(event.target.value)} required className="h-12" /></div> : null}
-              <div className="grid gap-2"><Label htmlFor="account-email">Adresa e-pošte</Label><Input id="account-email" type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-12" /></div>
+              <div className="grid gap-2"><Label htmlFor="account-email">Email adresa</Label><Input id="account-email" type="email" autoComplete="email" inputMode="email" value={email} onChange={(event) => setEmail(event.target.value)} required className="h-12" /></div>
               {!isForgot ? (
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between gap-3"><Label htmlFor="account-password">Lozinka</Label>{!isSignup ? <Button type="button" variant="link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 text-xs font-medium">Zaboravili ste lozinku?</Button> : null}</div>
-                  <Input id="account-password" type="password" autoComplete={isSignup ? "new-password" : "current-password"} value={password} onChange={(event) => setPassword(event.target.value)} minLength={8} required className="h-12" />
-                  {isSignup ? <p className="text-xs text-muted-foreground">Najmanje 8 karaktera.</p> : null}
-                </div>
+                isClient ? (
+                  <div className="grid gap-2"><Label htmlFor="account-pib">PIB firme</Label><Input id="account-pib" type="password" autoComplete="off" inputMode="numeric" value={pib} onChange={(event) => setPib(event.target.value)} required className="h-12" /><p className="text-xs leading-5 text-muted-foreground">PIB se koristi kao pristupni podatak, pa ga čuvajte kao lozinku.</p></div>
+                ) : (
+                  <div className="grid gap-2"><div className="flex items-center justify-between gap-3"><Label htmlFor="account-password">Lozinka</Label><Button type="button" variant="link" onClick={() => { setMode("forgot"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 text-xs font-medium">Zaboravljena lozinka?</Button></div><Input id="account-password" type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required className="h-12" /></div>
+                )
               ) : null}
-              {!isSignup && !isForgot ? <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted-foreground"><Checkbox checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked === true)} />Zapamti me na ovom uređaju</label> : null}
+              {!isForgot ? <label className="flex cursor-pointer items-center gap-2.5 text-sm text-muted-foreground"><Checkbox checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked === true)} />Zapamti me na ovom uređaju</label> : null}
               {error ? <p role="alert" className="rounded-md border border-destructive/20 bg-destructive/5 px-3 py-2.5 text-sm text-destructive">{error}</p> : null}
               {standaloneLink ? <Link href="/" target="_blank" rel="noreferrer" className="flex min-h-12 items-center justify-center gap-2 rounded-lg border border-primary/20 bg-primary/5 px-4 text-sm font-semibold text-primary">Otvori aplikaciju u novom tabu <ArrowRight size={16} /></Link> : null}
               {message ? <p role="status" className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-primary">{message}</p> : null}
-              <Button type="submit" disabled={busy} className="mt-1 h-12 w-full gap-2 text-sm font-semibold">{busy ? "Sačekajte…" : isForgot ? "Pošalji link za promenu" : isSignup ? "Napravi nalog" : "Prijavi se"}{!busy ? <ArrowRight size={17} /> : null}</Button>
+              <Button type="submit" disabled={busy} className="mt-1 h-12 w-full gap-2 text-sm font-semibold">{busy ? "Sačekajte…" : isForgot ? "Pošalji uputstvo" : isClient ? "Prijavi se kao komitent" : "Prijavi se kao administrator"}{!busy ? <ArrowRight size={17} /> : null}</Button>
             </form>
             <div className="mt-5 border-t border-border pt-4 text-center text-sm text-muted-foreground">
-              {isForgot ? <Button type="button" variant="link" onClick={() => { setMode("signin"); setMessage(""); setError(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">Vrati se na prijavu</Button> : (
-                <p>{isSignup ? "Već imate nalog?" : "Nemate nalog?"}{" "}<Button type="button" variant="link" onClick={() => { setMode(isSignup ? "signin" : "signup"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">{isSignup ? "Prijavite se" : "Napravite nalog"}</Button></p>
+              {isForgot ? <Button type="button" variant="link" onClick={() => { setMode("signin"); setMessage(""); setError(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">Vrati se na administratorsku prijavu</Button> : (
+                <p>{isClient ? "Administrator ste?" : "Komitent ste?"}{" "}<Button type="button" variant="link" onClick={() => { setMode(isClient ? "signin" : "client"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">{isClient ? "Prijava administratora" : "Prijava emailom i PIB-om"}</Button></p>
               )}
             </div>
           </div>
-          {!isForgot ? <Link href="/demo" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted">Pogledajte demonstracioni primer <ArrowRight size={16} /></Link> : null}
-          <p className="mt-5 text-center text-[11px] leading-5 text-muted-foreground">Vaši podaci o opremi vidljivi su samo sa vašeg naloga.</p>
+          <Link href="/demo" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted">Pogledajte demonstracioni primer <ArrowRight size={16} /></Link>
+          <p className="mt-5 text-center text-[11px] leading-5 text-muted-foreground">Pristup komitenta važi samo za agregate dodeljene njegovom kartonu.</p>
         </div>
       </section>
     </main>

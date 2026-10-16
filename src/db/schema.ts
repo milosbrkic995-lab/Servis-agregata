@@ -191,7 +191,7 @@ export const serviceRecords = pgTable(
 export const appNotifications = pgTable(
   "app_notifications",
   {
-    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    id: text("id").primaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

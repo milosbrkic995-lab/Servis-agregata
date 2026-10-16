@@ -76,7 +76,7 @@ export default async function AdminGeneratorDetailPage({ params }: { params: Pro
         <div className="mt-6 border-t border-border pt-5">
           <h3 className="mb-4 font-semibold">Podaci o korisniku opreme</h3>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Info icon={<UserRound size={16}/>} label="Naziv" value={generator.clientCompany || generator.clientName || "J&B POWER / komitent nije dodeljen"} />
+            <Info icon={<UserRound size={16}/>} label="Naziv" value={generator.clientCompany || generator.clientName || "Nije izdat / nije dodeljen komitentu"} />
             <Info icon={<MapPin size={16}/>} label="Adresa" value={generator.clientAddress || "Nije uneto"} />
             <Info icon={<FileText size={16}/>} label="PIB" value={generator.clientPib || "Nije uneto"} />
             <Info icon={<FileText size={16}/>} label="Tel/fax" value={generator.clientPhone || "Nije uneto"} />

@@ -1,16 +1,16 @@
 import Link from "next/link";
 import { desc } from "drizzle-orm";
-import { ArrowUpRight, Building2, Mail, MapPin, Phone, UserCheck, UserRoundPlus } from "lucide-react";
+import { ArrowUpRight, Building2, Mail, MapPin, Phone, UserRoundPlus } from "lucide-react";
 
 import { db } from "@/db";
 import { clients } from "@/db/schema";
-import { createClientAction, linkClientAccountAction, updateClientAction } from "../actions";
+import { createClientAction, updateClientAction } from "../actions";
 
 const statusMessages: Record<string, string> = {
-  created: "Komitent je dodat u evidenciju.",
+  created: "Komitent je dodat u evidenciju. Može da se prijavi emailom i PIB-om.",
   updated: "Podaci o komitentu su sačuvani.",
   linked: "Nalog je povezan sa komitentom.",
-  invalid: "Proveri ime i ispravnu email adresu.",
+  invalid: "Proveri naziv, ispravnu email adresu i PIB firme.",
   "duplicate-or-error": "Komitent sa tom email adresom možda već postoji. Proveri evidenciju i pokušaj ponovo.",
   "not-found": "Komitent nije pronađen.",
   "already-linked": "Komitent već ima povezan nalog.",
@@ -27,7 +27,7 @@ export default async function AdminClientsPage({ searchParams }: { searchParams:
       <section>
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Master panel</p>
         <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Komitenti</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Klikni na karticu komitenta da otvoriš njegov karton i vidiš samo agregate koji su mu dodeljeni.</p>
+        <p className="mt-2 text-sm text-muted-foreground">Unesi komitenta i njegov PIB. Pri prvoj prijavi koristiće email i PIB; pristup se automatski veže za ovaj karton.</p>
       </section>
 
       {status && statusMessages[status] ? <p role="status" className="rounded-md border border-border bg-muted/50 p-3 text-sm">{statusMessages[status]}</p> : null}
@@ -35,14 +35,14 @@ export default async function AdminClientsPage({ searchParams }: { searchParams:
       <section className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="mb-4 flex items-center gap-2">
           <UserRoundPlus size={19} className="text-primary" />
-          <div><h3 className="font-semibold">Dodaj komitenta</h3><p className="mt-1 text-xs text-muted-foreground">Posle unosa možeš da povežeš njegov verifikovani korisnički nalog.</p></div>
+          <div><h3 className="font-semibold">Dodaj komitenta</h3><p className="mt-1 text-xs text-muted-foreground">Unesi podatke koje će komitent koristiti za prijavu u portal.</p></div>
         </div>
         <form action={createClientAction} className="grid gap-3 sm:grid-cols-2">
           <Field name="name" label="Ime i prezime / naziv" required placeholder="Steva Stebanović" />
           <Field name="email" label="Email" type="email" required placeholder="steva@primer.rs" />
           <Field name="company" label="Firma" placeholder="Naziv firme (opciono)" />
           <Field name="phone" label="Telefon" placeholder="Telefon (opciono)" />
-          <Field name="pib" label="PIB" placeholder="PIB (opciono)" />
+          <Field name="pib" label="PIB firme" required placeholder="PIB firme" />
           <Field name="address" label="Adresa / lokacija" placeholder="Adresa (opciono)" />
           <label className="grid gap-1.5 text-sm sm:col-span-2"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} className="rounded-md border border-input bg-background px-3 py-2" placeholder="Interna napomena (opciono)" /></label>
           <div className="sm:col-span-2"><button className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90" type="submit">Sačuvaj komitenta</button></div>
@@ -70,7 +70,8 @@ export default async function AdminClientsPage({ searchParams }: { searchParams:
                   <p className="flex items-start gap-2 break-all text-muted-foreground"><Mail size={15} className="mt-0.5 shrink-0" />{client.email}</p>
                   {client.phone ? <p className="flex items-start gap-2 text-muted-foreground"><Phone size={15} className="mt-0.5 shrink-0" />{client.phone}</p> : null}
                   {client.address ? <p className="flex items-start gap-2 text-muted-foreground"><MapPin size={15} className="mt-0.5 shrink-0" />{client.address}</p> : null}
-                  <p><span className="rounded-md border border-border px-2 py-1 text-xs">{client.userId ? "Nalog povezan" : "Bez korisničkog naloga"}</span></p>
+                  <p><span className="rounded-md border border-border px-2 py-1 text-xs">{client.userId ? "Nalog je već povezan" : "Nalog će se otvoriti pri prvoj prijavi"}</span></p>
+                <p className="mt-2 text-xs leading-5 text-muted-foreground">Komitent se prijavljuje emailom i PIB-om unetim u ovaj karton. Videće samo agregate koji su mu dodeljeni.</p>
                 </div>
 
                 <details className="mt-4 rounded-md border border-border p-3">
@@ -81,18 +82,12 @@ export default async function AdminClientsPage({ searchParams }: { searchParams:
                     <Field name="email" label="Email" type="email" required defaultValue={client.email} />
                     <Field name="company" label="Firma" defaultValue={client.company ?? ""} />
                     <Field name="phone" label="Telefon" defaultValue={client.phone ?? ""} />
-                    <Field name="pib" label="PIB" defaultValue={client.pib ?? ""} />
+                    <Field name="pib" label="PIB firme" required defaultValue={client.pib ?? ""} />
                     <Field name="address" label="Adresa" defaultValue={client.address ?? ""} />
                     <label className="grid gap-1.5 text-sm"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} defaultValue={client.notes ?? ""} className="rounded-md border border-input bg-background px-3 py-2" /></label>
                     <button type="submit" className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Sačuvaj izmene</button>
                   </form>
                 </details>
-
-                {!client.userId ? <form action={linkClientAccountAction} className="mt-3 grid gap-2">
-                  <input type="hidden" name="clientId" value={client.id} />
-                  <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md border border-border px-3 text-sm font-medium hover:bg-muted"><UserCheck size={15} /> Poveži verifikovan nalog</button>
-                  <span className="text-xs text-muted-foreground">Korisnik mora prethodno da se registruje i potvrdi email.</span>
-                </form> : null}
               </article>
             ))}
           </div>

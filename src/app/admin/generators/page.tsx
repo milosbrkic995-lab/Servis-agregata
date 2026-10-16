@@ -58,6 +58,9 @@ export default async function AdminGeneratorsPage({ searchParams }: { searchPara
       .orderBy(asc(generators.name)),
   ]);
 
+  const unissuedRows = generatorRows.filter((generator) => !generator.clientId);
+  const issuedCount = generatorRows.length - unissuedRows.length;
+
   return (
     <div className="space-y-6">
       <section>
@@ -67,6 +70,50 @@ export default async function AdminGeneratorsPage({ searchParams }: { searchPara
       </section>
 
       {status && statusMessages[status] ? <p role="status" className="rounded-md border border-border bg-muted/50 p-3 text-sm">{statusMessages[status]}</p> : null}
+
+      <section className="grid gap-3 sm:grid-cols-3" aria-label="Pregled zaliha agregata">
+        <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Ukupno u registru</p><p className="mt-2 text-3xl font-bold tabular-nums">{generatorRows.length}</p></div>
+        <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Dodeljeno komitentima</p><p className="mt-2 text-3xl font-bold tabular-nums">{issuedCount}</p></div>
+        <div className="rounded-lg border border-border bg-card p-4"><p className="text-xs text-muted-foreground">Neizdati agregati</p><p className="mt-2 text-3xl font-bold tabular-nums">{unissuedRows.length}</p></div>
+      </section>
+
+      <section className="space-y-3 rounded-lg border border-border bg-card p-4 sm:p-6">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div><h3 className="text-lg font-semibold">Neizdati agregati ({unissuedRows.length})</h3><p className="mt-1 text-sm text-muted-foreground">Ovi agregati nemaju dodeljenog komitenta. Mogu da ostanu u evidenciji dok ih ne izdaš.</p></div>
+          <span className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground">Nije dodeljeno</span>
+        </div>
+        {unissuedRows.length ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            {unissuedRows.map((g) => (
+              <article key={g.id} className="min-w-0 rounded-lg border border-border p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0"><h4 className="break-words font-semibold">{g.name}</h4><p className="mt-1 text-sm text-muted-foreground">{g.manufacturer} · motor: {g.model} · SN motora: {g.serialNumber}</p><p className="mt-1 text-xs text-muted-foreground">SN agregata: {g.generatorSerialNumber || "Nije unet"} · {g.currentHours.toLocaleString("sr-Latn-RS")} rad. sati</p><p className="mt-1 text-xs text-muted-foreground">Lokacija: {g.location} · Kontroler: {g.controller || "Nije unet"}</p></div>
+                  <span className="shrink-0 rounded-md border border-border px-2 py-1 text-xs font-semibold">NEIZDAT</span>
+                </div>
+                <form action={updateGeneratorAction} className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                  <input type="hidden" name="generatorId" value={g.id} />
+                  <input type="hidden" name="name" value={g.name} />
+                  <input type="hidden" name="manufacturer" value={g.manufacturer} />
+                  <input type="hidden" name="model" value={g.model} />
+                  <input type="hidden" name="serialNumber" value={g.serialNumber} />
+                  <input type="hidden" name="controller" value={g.controller ?? ""} />
+                  <input type="hidden" name="generatorSerialNumber" value={g.generatorSerialNumber ?? ""} />
+                  <input type="hidden" name="operatingMode" value={g.operatingMode ?? "auto"} />
+                  <input type="hidden" name="manufacturingYear" value={g.manufacturingYear ? String(g.manufacturingYear) : ""} />
+                  <input type="hidden" name="powerValue" value={String(g.powerValue)} />
+                  <input type="hidden" name="powerUnit" value={g.powerUnit} />
+                  <input type="hidden" name="location" value={g.location} />
+                  <input type="hidden" name="commissionedAt" value={g.commissionedAt} />
+                  <input type="hidden" name="intervalMonths" value={String(g.intervalMonths ?? 6)} />
+                  <input type="hidden" name="currentHours" value={String(g.currentHours)} />
+                  <label className="grid min-w-0 gap-1.5 text-sm"><span className="font-medium">Dodeli komitentu</span><select name="clientId" required defaultValue="" className="min-h-10 rounded-md border border-input bg-background px-3"><option value="" disabled>Izaberi komitenta</option>{clientRows.map((client) => <option key={client.id} value={client.id}>{client.company || client.name} — {client.email}</option>)}</select></label>
+                  <button type="submit" className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Izdaj agregat</button>
+                </form>
+              </article>
+            ))}
+          </div>
+        ) : <div className="rounded-lg border border-dashed border-border px-5 py-8 text-center text-sm text-muted-foreground">Svi agregati u registru već su dodeljeni komitentima.</div>}
+      </section>
 
       <section className="rounded-lg border border-border bg-card p-4 sm:p-6">
         <div className="mb-5 flex items-center gap-2">
@@ -103,14 +150,14 @@ export default async function AdminGeneratorsPage({ searchParams }: { searchPara
       <section className="overflow-hidden rounded-lg border border-border bg-card">
         <div className="border-b border-border p-4"><h3 className="font-semibold">Svi agregati ({generatorRows.length})</h3></div>
         {generatorRows.length ? <div className="divide-y divide-border">{generatorRows.map((g) => (
-          <article key={g.id} className="p-4 sm:p-5">
+          <article id={`generator-${g.id}`} key={g.id} className="scroll-mt-6 p-4 sm:p-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
                 <h4 className="font-semibold">{g.name}</h4>
                 <p className="mt-1 text-sm text-muted-foreground">{g.manufacturer} · motor: {g.model} · SN motora: {g.serialNumber}</p>
                 <p className="mt-1 text-xs text-muted-foreground">SN agregata: {g.generatorSerialNumber || "Nije unet"} · {g.currentHours.toLocaleString("sr-Latn-RS")} rad. sati · {g.location}</p>
               </div>
-              <div className="text-left sm:text-right"><p className="text-sm font-medium">{g.clientCompany || g.clientName || "J&B POWER — sopstveni agregat"}</p><p className="mt-1 text-xs text-muted-foreground">{modeLabels[g.operatingMode] ?? "Nije podešeno"}{g.manufacturingYear ? ` · godište ${g.manufacturingYear}` : ""}</p></div>
+              <div className="text-left sm:text-right"><p className="text-sm font-medium">{g.clientCompany || g.clientName || "Nije izdat / nije dodeljen komitentu"}</p><p className="mt-1 text-xs text-muted-foreground">{modeLabels[g.operatingMode] ?? "Nije podešeno"}{g.manufacturingYear ? ` · godište ${g.manufacturingYear}` : ""}</p></div>
             </div>
             <p className="mt-2 text-xs text-muted-foreground">Kontroler: {g.controller || "Nije unet"}</p>
             <details className="mt-4 rounded-md border border-border p-3">

@@ -1,11 +1,11 @@
 "use server";
 
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { clients, generators, serviceRecords, user } from "@/db/schema";
+import { clients, generators, serviceRecords } from "@/db/schema";
 import { addMonths } from "@/lib/generator-utils";
 import { requireAdmin } from "@/lib/permissions";
 
@@ -55,11 +55,11 @@ export async function createClientAction(formData: FormData) {
   const email = value(formData, "email").toLowerCase();
   const company = value(formData, "company") || null;
   const phone = value(formData, "phone") || null;
-  const pib = value(formData, "pib") || null;
+  const pib = value(formData, "pib").replace(/\s+/g, "") || null;
   const address = value(formData, "address") || null;
   const notes = value(formData, "notes") || null;
 
-  if (!name || name.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+  if (!name || name.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !pib || !/^\d{9}$/.test(pib)) {
     redirect("/admin/clients?status=invalid");
   }
 
@@ -81,10 +81,10 @@ export async function updateClientAction(formData: FormData) {
   const email = value(formData, "email").toLowerCase();
   const company = value(formData, "company") || null;
   const phone = value(formData, "phone") || null;
-  const pib = value(formData, "pib") || null;
+  const pib = value(formData, "pib").replace(/\s+/g, "") || null;
   const address = value(formData, "address") || null;
   const notes = value(formData, "notes") || null;
-  if (!id || !name || name.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+  if (!id || !name || name.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !pib || !/^\d{9}$/.test(pib)) {
     redirect("/admin/clients?status=invalid");
   }
   const previous = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
@@ -92,7 +92,7 @@ export async function updateClientAction(formData: FormData) {
   try {
     await db.update(clients).set({
       name, email, company, phone, pib, address, notes,
-      // If email changes, unlink the account until the new address is verified and linked.
+      // If email changes, unlink the old login so the new email + PIB pair can link on next sign-in.
       userId: previous[0].email.toLowerCase() === email ? previous[0].userId : null,
       updatedAt: new Date(),
     }).where(eq(clients.id, id));
@@ -104,42 +104,6 @@ export async function updateClientAction(formData: FormData) {
   revalidatePath("/admin/clients");
   revalidatePath(`/admin/clients/${id}`);
   redirect("/admin/clients?status=updated");
-}
-
-/** Links only a verified account whose email exactly matches the client record. */
-export async function linkClientAccountAction(formData: FormData) {
-  await requireAdmin();
-  const clientId = value(formData, "clientId");
-  if (!clientId) redirect("/admin/clients?status=invalid");
-
-  const matches = await db.select().from(clients).where(eq(clients.id, clientId)).limit(1);
-  const client = matches[0];
-  if (!client) redirect("/admin/clients?status=not-found");
-  if (client.userId) redirect("/admin/clients?status=already-linked");
-
-  const accounts = await db
-    .select({ id: user.id, email: user.email })
-    .from(user)
-    .where(and(sql`lower(${user.email}) = ${client.email.toLowerCase()}`, eq(user.emailVerified, true)))
-    .limit(1);
-  const account = accounts[0];
-  if (!account) redirect("/admin/clients?status=no-verified-account");
-
-  const alreadyLinked = await db.select({ id: clients.id }).from(clients).where(eq(clients.userId, account.id)).limit(1);
-  if (alreadyLinked[0]) redirect("/admin/clients?status=account-used");
-
-  await db.update(clients).set({ userId: account.id, updatedAt: new Date() }).where(eq(clients.id, client.id));
-  // Preserve and attach legacy aggregates created by this now-linked account.
-  await db.update(generators)
-    .set({ clientId: client.id, updatedAt: new Date() })
-    .where(and(eq(generators.userId, account.id), isNull(generators.clientId)));
-
-  revalidatePath("/admin");
-  revalidatePath("/admin/clients");
-  revalidatePath(`/admin/clients/${client.id}`);
-  revalidatePath("/admin/generators");
-  revalidatePath("/dashboard");
-  redirect("/admin/clients?status=linked");
 }
 
 export async function updateGeneratorAction(formData: FormData) {

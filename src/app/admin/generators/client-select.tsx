@@ -32,7 +32,7 @@ export function ClientSelectWithPreview({
           onChange={(event) => setClientId(event.target.value)}
           className="min-h-10 rounded-md border border-input bg-background px-3"
         >
-          <option value="">J&amp;B POWER — bez dodeljenog komitenta</option>
+          <option value="">Neizdat agregat — bez komitenta</option>
           {clients.map((client) => (
             <option key={client.id} value={client.id}>
               {client.company || client.name} — {client.email}
@@ -46,7 +46,7 @@ export function ClientSelectWithPreview({
           Podaci o korisniku opreme
         </p>
         <dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <PreviewField label="Naziv" value={selected ? (selected.company || selected.name) : "J&B POWER / nije izabran komitent"} />
+          <PreviewField label="Naziv" value={selected ? (selected.company || selected.name) : "Neizdat agregat / nije izabran komitent"} />
           <PreviewField label="Adresa" value={selected?.address || "Nije uneto"} />
           <PreviewField label="PIB" value={selected?.pib || "Nije uneto"} />
           <PreviewField label="Tel/fax" value={selected?.phone || "Nije uneto"} />
