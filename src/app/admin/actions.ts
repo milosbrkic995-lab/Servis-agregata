@@ -55,12 +55,19 @@ export async function createClientAction(formData: FormData) {
   const email = value(formData, "email").toLowerCase();
   const company = value(formData, "company") || null;
   const phone = value(formData, "phone") || null;
-  const pib = value(formData, "pib").replace(/\s+/g, "") || null;
+  // PIB je tekstualni identifikator: ukloni formatiranje, ali sačuvaj početne nule.
+  const pib = value(formData, "pib").replace(/\D/g, "") || null;
   const address = value(formData, "address") || null;
   const notes = value(formData, "notes") || null;
 
-  if (!name || name.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !pib || !/^\d{9}$/.test(pib)) {
-    redirect("/admin/clients?status=invalid");
+  if (!name || name.length > 180) {
+    redirect("/admin/clients?status=invalid-name");
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    redirect("/admin/clients?status=invalid-email");
+  }
+  if (!pib || !/^\d{9}$/.test(pib)) {
+    redirect("/admin/clients?status=invalid-pib");
   }
 
   try {
@@ -81,12 +88,21 @@ export async function updateClientAction(formData: FormData) {
   const email = value(formData, "email").toLowerCase();
   const company = value(formData, "company") || null;
   const phone = value(formData, "phone") || null;
-  const pib = value(formData, "pib").replace(/\s+/g, "") || null;
+  const pib = value(formData, "pib").replace(/\D/g, "") || null;
   const address = value(formData, "address") || null;
   const notes = value(formData, "notes") || null;
-  if (!id || !name || name.length > 180 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254 || !pib || !/^\d{9}$/.test(pib)) {
-    redirect("/admin/clients?status=invalid");
+
+  if (!id) redirect("/admin/clients?status=not-found");
+  if (!name || name.length > 180) {
+    redirect("/admin/clients?status=invalid-name");
   }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    redirect("/admin/clients?status=invalid-email");
+  }
+  if (!pib || !/^\d{9}$/.test(pib)) {
+    redirect("/admin/clients?status=invalid-pib");
+  }
+
   const previous = await db.select().from(clients).where(eq(clients.id, id)).limit(1);
   if (!previous[0]) redirect("/admin/clients?status=not-found");
   try {
