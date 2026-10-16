@@ -6,7 +6,7 @@ import { getUserRole } from "@/lib/permissions";
 
 export default async function HomePage() {
   const currentUser = await getUser();
-  if (!currentUser) return <AuthScreen initialMode="client" />;
+  if (!currentUser) return <AuthScreen />;
   const role = await getUserRole(currentUser.id);
   redirect(role === "admin" ? "/admin" : "/dashboard");
 }

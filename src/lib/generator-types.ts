@@ -10,6 +10,11 @@ export interface GeneratorRecord {
   manufacturer: string;
   model: string;
   serialNumber: string;
+  /** Extra technical fields used by the client service report. Optional for older callers. */
+  generatorSerialNumber?: string | null;
+  controller?: string | null;
+  manufacturingYear?: number | null;
+  operatingMode?: string;
   powerValue: number;
   powerUnit: PowerUnit;
   location: string;
