@@ -135,6 +135,11 @@ export const generators = pgTable(
     manufacturer: text("manufacturer").notNull(),
     model: text("model").notNull(),
     serialNumber: text("serial_number").notNull(),
+    // Additional technical data from the equipment card.
+    controller: text("controller"),
+    generatorSerialNumber: text("generator_serial_number"),
+    operatingMode: text("operating_mode").notNull().default("auto"),
+    manufacturingYear: integer("manufacturing_year"),
     powerValue: real("power_value").notNull(),
     powerUnit: text("power_unit").notNull(),
     location: text("location").notNull(),
@@ -186,7 +191,7 @@ export const serviceRecords = pgTable(
 export const appNotifications = pgTable(
   "app_notifications",
   {
-    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    id: text("id").primaryKey(),
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),

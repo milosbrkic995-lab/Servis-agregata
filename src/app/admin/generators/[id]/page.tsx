@@ -6,6 +6,12 @@ import { ArrowLeft, CalendarClock, Clock3, FileText, MapPin, UserRound, Wrench, 
 import { db } from "@/db";
 import { clients, generators, serviceRecords } from "@/db/schema";
 
+const modeLabels: Record<string, string> = {
+  auto: "Auto mod",
+  manual: "Ručni mod",
+  stopped: "Zastoj",
+};
+
 export default async function AdminGeneratorDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const rows = await db.select({
@@ -15,6 +21,10 @@ export default async function AdminGeneratorDetailPage({ params }: { params: Pro
     manufacturer: generators.manufacturer,
     model: generators.model,
     serialNumber: generators.serialNumber,
+    controller: generators.controller,
+    generatorSerialNumber: generators.generatorSerialNumber,
+    operatingMode: generators.operatingMode,
+    manufacturingYear: generators.manufacturingYear,
     powerValue: generators.powerValue,
     powerUnit: generators.powerUnit,
     location: generators.location,
@@ -28,7 +38,11 @@ export default async function AdminGeneratorDetailPage({ params }: { params: Pro
     reminderDays: generators.reminderDays,
     notificationsEnabled: generators.notificationsEnabled,
     clientName: clients.name,
+    clientCompany: clients.company,
     clientEmail: clients.email,
+    clientPhone: clients.phone,
+    clientPib: clients.pib,
+    clientAddress: clients.address,
   }).from(generators).leftJoin(clients, eq(generators.clientId, clients.id)).where(eq(generators.id, id)).limit(1);
 
   const generator = rows[0];
@@ -55,20 +69,53 @@ export default async function AdminGeneratorDetailPage({ params }: { params: Pro
       <section className="rounded-xl border border-border bg-card p-5 sm:p-7">
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Master panel · servisni karton agregata</p>
         <div className="mt-3 flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-          <div className="flex items-start gap-3"><span className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary"><Zap size={23}/></span><div className="min-w-0"><h2 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">{generator.name}</h2><p className="mt-1 text-sm text-muted-foreground">{generator.manufacturer} · {generator.model}</p><p className="mt-2 text-xs text-muted-foreground">Serijski broj: <span className="font-semibold text-foreground">{generator.serialNumber}</span></p></div></div>
-          <div className="rounded-lg border border-border bg-background px-4 py-3"><p className="text-xs text-muted-foreground">Snaga</p><p className="mt-1 text-2xl font-bold">{generator.powerValue} {generator.powerUnit}</p></div>
+          <div className="flex items-start gap-3"><span className="flex size-12 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary"><Zap size={23}/></span><div className="min-w-0"><h2 className="break-words text-2xl font-bold tracking-tight sm:text-3xl">{generator.name}</h2><p className="mt-1 text-sm text-muted-foreground">{generator.manufacturer} · {generator.model}</p><p className="mt-2 text-xs text-muted-foreground">Serijski broj agregata: <span className="font-semibold text-foreground">{generator.generatorSerialNumber || "Nije unet"}</span></p></div></div>
+          <div className="rounded-lg border border-border bg-background px-4 py-3"><p className="text-xs text-muted-foreground">Snaga</p><p className="mt-1 text-2xl font-bold">{generator.powerValue} {generator.powerUnit}</p><p className="mt-1 text-xs text-muted-foreground">{modeLabels[generator.operatingMode] ?? "Režim nije podešen"}</p></div>
         </div>
-        <div className="mt-6 grid gap-3 border-t border-border pt-5 sm:grid-cols-2 lg:grid-cols-3">
-          <Info icon={<UserRound size={16}/>} label="Komitent / vlasnik" value={generator.clientName ?? "J&B POWER — sopstveni agregat"} />
-          {generator.clientEmail ? <Info icon={<FileText size={16}/>} label="Email komitenta" value={generator.clientEmail}/> : null}
-          <Info icon={<MapPin size={16}/>} label="Lokacija" value={generator.location}/>
-          <Info icon={<CalendarClock size={16}/>} label="Pušten u rad" value={fmtDate(generator.commissionedAt)}/>
-          <Info icon={<Clock3 size={16}/>} label="Trenutni radni sati" value={`${generator.currentHours.toLocaleString("sr-Latn-RS")} h`}/>
-          <Info icon={<Wrench size={16}/>} label="Interval servisa" value={interval}/>
-          <Info icon={<CalendarClock size={16}/>} label="Sledeći servis" value={generator.nextServiceDate ? fmtDate(generator.nextServiceDate) : "Nije određen"}/>
-          <Info icon={<Clock3 size={16}/>} label="Radni sati pri poslednjem servisu" value={generator.lastServiceHours === null ? "Nije evidentirano" : `${generator.lastServiceHours.toLocaleString("sr-Latn-RS")} h`}/>
-          <Info icon={<CalendarClock size={16}/>} label="Podsetnik pre servisa" value={`${generator.reminderDays} dana`}/>
-          <Info icon={<Wrench size={16}/>} label="Podsetnici" value={generator.notificationsEnabled ? "Uključeni" : "Isključeni"}/>
+
+        <div className="mt-6 border-t border-border pt-5">
+          <h3 className="mb-4 font-semibold">Podaci o korisniku opreme</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Info icon={<UserRound size={16}/>} label="Naziv" value={generator.clientCompany || generator.clientName || "J&B POWER / komitent nije dodeljen"} />
+            <Info icon={<MapPin size={16}/>} label="Adresa" value={generator.clientAddress || "Nije uneto"} />
+            <Info icon={<FileText size={16}/>} label="PIB" value={generator.clientPib || "Nije uneto"} />
+            <Info icon={<FileText size={16}/>} label="Tel/fax" value={generator.clientPhone || "Nije uneto"} />
+            <Info icon={<MapPin size={16}/>} label="Lokacija opreme" value={generator.location} />
+            {generator.clientEmail ? <Info icon={<FileText size={16}/>} label="Email komitenta" value={generator.clientEmail}/> : null}
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-border pt-5">
+          <h3 className="mb-4 font-semibold">Podaci o opremi</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Info icon={<Zap size={16}/>} label="Proizvođač" value={generator.manufacturer}/>
+            <Info icon={<Zap size={16}/>} label="Generator" value={generator.name}/>
+            <Info icon={<Wrench size={16}/>} label="Kontroler" value={generator.controller || "Nije unet"}/>
+            <Info icon={<Clock3 size={16}/>} label="Br. rad. sati" value={`${generator.currentHours.toLocaleString("sr-Latn-RS")} h`}/>
+            <Info icon={<CalendarClock size={16}/>} label="God. proizvodnje" value={generator.manufacturingYear ? String(generator.manufacturingYear) : "Nije uneta"}/>
+            <Info icon={<Zap size={16}/>} label="Agregat ostavljen" value={modeLabels[generator.operatingMode] ?? "Nije podešeno"}/>
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-border pt-5">
+          <h3 className="mb-4 font-semibold">Model i SN motora</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Info icon={<Wrench size={16}/>} label="Model" value={generator.model}/>
+            <Info icon={<FileText size={16}/>} label="Serijski broj motora" value={generator.serialNumber}/>
+            <Info icon={<FileText size={16}/>} label="Ser. br. (agregata)" value={generator.generatorSerialNumber || "Nije unet"}/>
+          </div>
+        </div>
+
+        <div className="mt-6 border-t border-border pt-5">
+          <h3 className="mb-4 font-semibold">Podaci za servis</h3>
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            <Info icon={<CalendarClock size={16}/>} label="Pušten u rad" value={fmtDate(generator.commissionedAt)}/>
+            <Info icon={<Wrench size={16}/>} label="Interval servisa" value={interval}/>
+            <Info icon={<CalendarClock size={16}/>} label="Sledeći servis" value={generator.nextServiceDate ? fmtDate(generator.nextServiceDate) : "Nije određen"}/>
+            <Info icon={<Clock3 size={16}/>} label="Radni sati pri poslednjem servisu" value={generator.lastServiceHours === null ? "Nije evidentirano" : `${generator.lastServiceHours.toLocaleString("sr-Latn-RS")} h`}/>
+            <Info icon={<CalendarClock size={16}/>} label="Podsetnik pre servisa" value={`${generator.reminderDays} dana`}/>
+            <Info icon={<Wrench size={16}/>} label="Podsetnici" value={generator.notificationsEnabled ? "Uključeni" : "Isključeni"}/>
+          </div>
         </div>
       </section>
 

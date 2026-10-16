@@ -25,6 +25,30 @@ function isDateOnly(input: string): boolean {
   return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === input;
 }
 
+function readEquipmentFields(formData: FormData) {
+  const controller = value(formData, "controller") || null;
+  const generatorSerialNumber = value(formData, "generatorSerialNumber") || null;
+  const operatingMode = value(formData, "operatingMode") || "auto";
+  const yearInput = value(formData, "manufacturingYear");
+  const manufacturingYear = yearInput ? numberValue(yearInput, 1900) : null;
+  const yearInvalid = Boolean(
+    yearInput &&
+      (manufacturingYear === null ||
+        !Number.isInteger(manufacturingYear) ||
+        manufacturingYear > 2100),
+  );
+  return {
+    controller,
+    generatorSerialNumber,
+    operatingMode,
+    manufacturingYear,
+    yearInvalid,
+  };
+}
+
+const isOperatingMode = (mode: string) =>
+  ["auto", "manual", "stopped"].includes(mode);
+
 export async function createClientAction(formData: FormData) {
   await requireAdmin();
   const name = value(formData, "name");
@@ -49,8 +73,6 @@ export async function createClientAction(formData: FormData) {
   revalidatePath("/admin/clients");
   redirect("/admin/clients?status=created");
 }
-
-/** Links only a verified account whose email exactly matches the client record. */
 
 export async function updateClientAction(formData: FormData) {
   await requireAdmin();
@@ -80,9 +102,11 @@ export async function updateClientAction(formData: FormData) {
   }
   revalidatePath("/admin");
   revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${id}`);
   redirect("/admin/clients?status=updated");
 }
 
+/** Links only a verified account whose email exactly matches the client record. */
 export async function linkClientAccountAction(formData: FormData) {
   await requireAdmin();
   const clientId = value(formData, "clientId");
@@ -112,10 +136,11 @@ export async function linkClientAccountAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/clients");
+  revalidatePath(`/admin/clients/${client.id}`);
   revalidatePath("/admin/generators");
+  revalidatePath("/dashboard");
   redirect("/admin/clients?status=linked");
 }
-
 
 export async function updateGeneratorAction(formData: FormData) {
   const admin = await requireAdmin();
@@ -131,9 +156,16 @@ export async function updateGeneratorAction(formData: FormData) {
   const intervalMonths = numberValue(value(formData, "intervalMonths"), 1);
   const currentHours = numberValue(value(formData, "currentHours") || "0", 0);
   const clientId = value(formData, "clientId") || null;
-  if (!id || !name || !manufacturer || !model || !serialNumber || !location || !isDateOnly(commissionedAt) || powerValue === null || !["kW", "kVA"].includes(powerUnit) || intervalMonths === null || !Number.isInteger(intervalMonths) || intervalMonths > 120 || currentHours === null) {
+  const equipment = readEquipmentFields(formData);
+
+  if (!id || !name || !manufacturer || !model || !serialNumber || !location ||
+      !isDateOnly(commissionedAt) || powerValue === null ||
+      !["kW", "kVA"].includes(powerUnit) || intervalMonths === null ||
+      !Number.isInteger(intervalMonths) || intervalMonths > 120 || currentHours === null ||
+      !isOperatingMode(equipment.operatingMode) || equipment.yearInvalid) {
     redirect("/admin/generators?status=invalid");
   }
+
   const existing = await db.select({ id: generators.id }).from(generators).where(eq(generators.id, id)).limit(1);
   if (!existing[0]) redirect("/admin/generators?status=not-found");
   const recentService = await db.select({ completedAt: serviceRecords.completedAt }).from(serviceRecords)
@@ -143,18 +175,26 @@ export async function updateGeneratorAction(formData: FormData) {
     if (!owner[0]) redirect("/admin/generators?status=invalid-client");
   }
   await db.update(generators).set({
-    clientId, name, manufacturer, model, serialNumber, powerValue, powerUnit,
-    location, commissionedAt, intervalType: "calendar", intervalMonths,
+    clientId, name, manufacturer, model, serialNumber,
+    controller: equipment.controller,
+    generatorSerialNumber: equipment.generatorSerialNumber,
+    operatingMode: equipment.operatingMode,
+    manufacturingYear: equipment.manufacturingYear,
+    powerValue, powerUnit, location, commissionedAt,
+    intervalType: "calendar", intervalMonths,
     intervalHours: null, currentHours,
     nextServiceDate: addMonths(recentService[0]?.completedAt ?? commissionedAt, intervalMonths),
     updatedAt: new Date(),
   }).where(eq(generators.id, id));
+
   revalidatePath("/admin");
   revalidatePath("/admin/generators");
+  revalidatePath(`/admin/generators/${id}`);
+  if (clientId) revalidatePath(`/admin/clients/${clientId}`);
+  revalidatePath("/admin/clients");
   revalidatePath("/dashboard");
   redirect("/admin/generators?status=updated");
 }
-
 
 export async function createServiceRecordAction(formData: FormData) {
   const admin = await requireAdmin();
@@ -186,6 +226,7 @@ export async function createServiceRecordAction(formData: FormData) {
   }).where(eq(generators.id, generator.id));
   revalidatePath("/admin/work-orders");
   revalidatePath("/admin/generators");
+  revalidatePath(`/admin/generators/${generator.id}`);
   revalidatePath("/dashboard");
   revalidatePath(`/dashboard/generators/${generator.id}`);
   redirect("/admin/work-orders?status=created");
@@ -204,8 +245,13 @@ export async function createGeneratorAction(formData: FormData) {
   const intervalMonths = numberValue(value(formData, "intervalMonths"), 1);
   const currentHours = numberValue(value(formData, "currentHours") || "0", 0);
   const clientId = value(formData, "clientId") || null;
+  const equipment = readEquipmentFields(formData);
 
-  if (!name || !manufacturer || !model || !serialNumber || !location || !isDateOnly(commissionedAt) || powerValue === null || !["kW", "kVA"].includes(powerUnit) || intervalMonths === null || !Number.isInteger(intervalMonths) || intervalMonths > 120 || currentHours === null) {
+  if (!name || !manufacturer || !model || !serialNumber || !location ||
+      !isDateOnly(commissionedAt) || powerValue === null ||
+      !["kW", "kVA"].includes(powerUnit) || intervalMonths === null ||
+      !Number.isInteger(intervalMonths) || intervalMonths > 120 || currentHours === null ||
+      !isOperatingMode(equipment.operatingMode) || equipment.yearInvalid) {
     redirect("/admin/generators?status=invalid");
   }
   if (clientId) {
@@ -220,6 +266,10 @@ export async function createGeneratorAction(formData: FormData) {
     manufacturer,
     model,
     serialNumber,
+    controller: equipment.controller,
+    generatorSerialNumber: equipment.generatorSerialNumber,
+    operatingMode: equipment.operatingMode,
+    manufacturingYear: equipment.manufacturingYear,
     powerValue,
     powerUnit,
     location,
@@ -236,5 +286,7 @@ export async function createGeneratorAction(formData: FormData) {
 
   revalidatePath("/admin");
   revalidatePath("/admin/generators");
+  revalidatePath("/admin/clients");
+  if (clientId) revalidatePath(`/admin/clients/${clientId}`);
   redirect("/admin/generators?status=created");
 }
