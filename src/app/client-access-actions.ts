@@ -15,7 +15,7 @@ function normalizeEmail(input: string): string {
 }
 
 function normalizePib(input: string): string {
-  return String(input ?? "").trim().replace(/\s+/g, "");
+  return String(input ?? "").replace(/\D/g, "");
 }
 
 function validEmail(input: string): boolean {
@@ -58,9 +58,12 @@ async function recordFailedAttempt(state: Awaited<ReturnType<typeof getAttemptKe
   }
 }
 
-async function rejectAttempt(state: Awaited<ReturnType<typeof getAttemptKey>>) {
+async function rejectAttempt(
+  state: Awaited<ReturnType<typeof getAttemptKey>>,
+  message = "Email i PIB ne odgovaraju nijednom kartonu komitenta. Proverite podatke u administratorskom panelu.",
+) {
   if (!state.blocked) await recordFailedAttempt(state);
-  return { ok: false as const };
+  return { ok: false as const, message };
 }
 
 /**
@@ -71,18 +74,23 @@ export async function validateClientPibAccess(emailInput: string, pibInput: stri
   const email = normalizeEmail(emailInput);
   const pib = normalizePib(pibInput);
   if (!validEmail(email) || !/^\d{9}$/.test(pib)) {
-    return { ok: false as const };
+    return { ok: false as const, message: "Unesite ispravnu email adresu i PIB od tačno 9 cifara." };
   }
 
   const attempt = await getAttemptKey(email);
-  if (attempt.blocked) return { ok: false as const };
+  if (attempt.blocked) {
+    return {
+      ok: false as const,
+      message: "Previše neuspešnih pokušaja prijave. Sačekajte 15 minuta pre ponovnog pokušaja.",
+    };
+  }
 
   const matchingClients = await db
     .select({ id: clients.id, name: clients.name, company: clients.company, userId: clients.userId })
     .from(clients)
     .where(and(
       sql`lower(${clients.email}) = ${email}`,
-      sql`regexp_replace(coalesce(${clients.pib}, ''), '[[:space:]]', '', 'g') = ${pib}`,
+      sql`regexp_replace(coalesce(${clients.pib}, ''), '[^0-9]', '', 'g') = ${pib}`,
     ))
     .limit(1);
   const client = matchingClients[0];
@@ -96,8 +104,12 @@ export async function validateClientPibAccess(emailInput: string, pibInput: stri
   const account = accounts[0];
 
   // Never let the client screen be used to log in as an administrator.
-  if (account?.role === "admin") return rejectAttempt(attempt);
-  if (client.userId && client.userId !== account?.id) return rejectAttempt(attempt);
+  if (account?.role === "admin") {
+    return rejectAttempt(attempt, "Ovaj email pripada administratorskom nalogu. Izaberite prijavu administratora.");
+  }
+  if (client.userId && client.userId !== account?.id) {
+    return rejectAttempt(attempt, "Ovaj karton je već povezan sa drugim korisničkim nalogom. Administrator treba da proveri povezivanje.");
+  }
 
   if (account) {
     const otherProfiles = await db
@@ -106,7 +118,7 @@ export async function validateClientPibAccess(emailInput: string, pibInput: stri
       .where(eq(clients.userId, account.id))
       .limit(1);
     if (otherProfiles[0] && otherProfiles[0].id !== client.id) {
-      return rejectAttempt(attempt);
+      return rejectAttempt(attempt, "Ovaj korisnički nalog je već povezan sa drugim kartonom komitenta.");
     }
 
     // The correct email + PIB pair is the agreed client credential. For accounts
@@ -173,7 +185,7 @@ export async function linkClientPibAccess(pibInput: string) {
     .from(clients)
     .where(and(
       sql`lower(${clients.email}) = ${email}`,
-      sql`regexp_replace(coalesce(${clients.pib}, ''), '[[:space:]]', '', 'g') = ${pib}`,
+      sql`regexp_replace(coalesce(${clients.pib}, ''), '[^0-9]', '', 'g') = ${pib}`,
     ))
     .limit(1);
   const client = matchingClients[0];

@@ -71,16 +71,18 @@ export function AuthScreen() {
         if (result.error) throw result.error;
         setMessage("Ako administratorski nalog postoji, poslali smo uputstvo za promenu lozinke na tu adresu.");
       } else if (mode === "client") {
-        const access = await validateClientPibAccess(normalizedEmail, pib);
+        // Use the same PIB normalization for lookup and Better Auth password.
+        const normalizedPib = pib.replace(/\D/g, "");
+        const access = await validateClientPibAccess(normalizedEmail, normalizedPib);
         if (!access.ok) {
-          setError("Email i PIB se ne poklapaju sa podacima koje je administracija unela. Proverite unos ili kontaktirajte J&B POWER.");
+          setError(access.message);
           return;
         }
 
         if (access.accountExists) {
           const result = await signIn.email({
             email: normalizedEmail,
-            password: pib.trim().replace(/\s+/g, ""),
+            password: normalizedPib,
             rememberMe,
             callbackURL: "/dashboard",
           });
@@ -92,13 +94,13 @@ export function AuthScreen() {
           const result = await signUp.email({
             name: access.name,
             email: normalizedEmail,
-            password: pib.trim().replace(/\s+/g, ""),
+            password: normalizedPib,
             callbackURL: "/dashboard",
           });
           if (result.error) throw result.error;
         }
 
-        const linked = await linkClientPibAccess(pib);
+        const linked = await linkClientPibAccess(normalizedPib);
         if (!linked.ok) {
           setError(linked.message || "Nije moguće povezati nalog sa kartonom komitenta.");
           return;
