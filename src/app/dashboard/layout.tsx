@@ -5,16 +5,19 @@ import { AppShell } from "@/components/app/app-shell";
 import { db } from "@/db";
 import { appNotifications } from "@/db/schema";
 import { getUser } from "@/lib/auth";
+import { getUserRole } from "@/lib/permissions";
 
 export default async function DashboardLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  const user = await getUser();
-  if (!user) redirect("/");
+  const currentUser = await getUser();
+  if (!currentUser) redirect("/");
+  if (await getUserRole(currentUser.id) === "admin") redirect("/admin");
+
   const unread = await db
     .select({ id: appNotifications.id })
     .from(appNotifications)
-    .where(and(eq(appNotifications.userId, user.id), isNull(appNotifications.readAt)));
+    .where(and(eq(appNotifications.userId, currentUser.id), isNull(appNotifications.readAt)));
   return (
-    <AppShell name={user.name} email={user.email} unreadCount={unread.length}>
+    <AppShell name={currentUser.name} email={currentUser.email} unreadCount={unread.length}>
       {children}
     </AppShell>
   );
