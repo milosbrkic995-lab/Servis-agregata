@@ -19,6 +19,9 @@ export const user = pgTable(
     email: text("email").notNull(),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
+    // New accounts are clients by default. Promote the owner's account manually
+    // after applying database/02-promote-admin.sql.
+    role: text("role").notNull().default("client"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
@@ -80,21 +83,54 @@ export const verification = pgTable(
   (t) => [index("verification_identifier_idx").on(t.identifier)],
 );
 
+/** A business/person managed from the administrator's master panel. */
+export const clients = pgTable(
+  "clients",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    name: text("name").notNull(),
+    email: text("email").notNull(),
+    company: text("company"),
+    phone: text("phone"),
+    pib: text("pib"),
+    address: text("address"),
+    notes: text("notes"),
+    // Null until a verified Better Auth account is explicitly linked by admin.
+    userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex("clients_email_idx").on(t.email),
+    uniqueIndex("clients_user_idx").on(t.userId),
+    index("clients_name_idx").on(t.name),
+  ],
+);
+
 export const userRelations = relations(user, ({ many }) => ({
   sessions: many(session),
   accounts: many(account),
   generators: many(generators),
   notifications: many(appNotifications),
   settings: many(userSettings),
+  clientProfiles: many(clients),
+}));
+
+export const clientRelations = relations(clients, ({ one, many }) => ({
+  user: one(user, { fields: [clients.userId], references: [user.id] }),
+  generators: many(generators),
 }));
 
 export const generators = pgTable(
   "generators",
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    // Original creator/owner field is preserved for backward compatibility.
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
+    // Null means the generator belongs to J&B POWER; otherwise it belongs to this client.
+    clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     manufacturer: text("manufacturer").notNull(),
     model: text("model").notNull(),
@@ -114,8 +150,17 @@ export const generators = pgTable(
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
   },
-  (t) => [index("generators_user_idx").on(t.userId)],
+  (t) => [
+    index("generators_user_idx").on(t.userId),
+    index("generators_client_idx").on(t.clientId),
+  ],
 );
+
+export const generatorRelations = relations(generators, ({ one, many }) => ({
+  owner: one(user, { fields: [generators.userId], references: [user.id] }),
+  client: one(clients, { fields: [generators.clientId], references: [clients.id] }),
+  serviceRecords: many(serviceRecords),
+}));
 
 export const serviceRecords = pgTable(
   "service_records",
