@@ -26,9 +26,9 @@ function translateAuthError(input: unknown): string {
   return "Prijava nije uspela. Proverite podatke i pokušajte ponovo.";
 }
 
-export function AuthScreen() {
+export function AuthScreen({ initialMode = "client" }: { initialMode?: "signin" | "client" }) {
   const router = useRouter();
-  const [mode, setMode] = useState<"signin" | "client" | "forgot">("signin");
+  const [mode, setMode] = useState<"signin" | "client" | "forgot">(initialMode);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pib, setPib] = useState("");
@@ -50,7 +50,7 @@ export function AuthScreen() {
       }
       return;
     }
-    router.replace("/dashboard");
+    router.replace(initialMode === "signin" ? "/admin" : "/dashboard");
     router.refresh();
   }
 
@@ -111,7 +111,7 @@ export function AuthScreen() {
           email: normalizedEmail,
           password,
           rememberMe,
-          callbackURL: "/dashboard",
+          callbackURL: initialMode === "signin" ? "/admin" : "/dashboard",
         });
         if (result.error) throw result.error;
         await continueToDashboard();
@@ -170,14 +170,17 @@ export function AuthScreen() {
               {message ? <p role="status" className="rounded-md border border-primary/20 bg-primary/5 px-3 py-2.5 text-sm text-primary">{message}</p> : null}
               <Button type="submit" disabled={busy} className="mt-1 h-12 w-full gap-2 text-sm font-semibold">{busy ? "Sačekajte…" : isForgot ? "Pošalji uputstvo" : isClient ? "Prijavi se kao komitent" : "Prijavi se kao administrator"}{!busy ? <ArrowRight size={17} /> : null}</Button>
             </form>
-            <div className="mt-5 border-t border-border pt-4 text-center text-sm text-muted-foreground">
-              {isForgot ? <Button type="button" variant="link" onClick={() => { setMode("signin"); setMessage(""); setError(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">Vrati se na administratorsku prijavu</Button> : (
-                <p>{isClient ? "Administrator ste?" : "Komitent ste?"}{" "}<Button type="button" variant="link" onClick={() => { setMode(isClient ? "signin" : "client"); setError(""); setMessage(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">{isClient ? "Prijava administratora" : "Prijava emailom i PIB-om"}</Button></p>
-              )}
-            </div>
+            {isForgot ? (
+              <div className="mt-5 border-t border-border pt-4 text-center text-sm text-muted-foreground">
+                <Button type="button" variant="link" onClick={() => { setMode("signin"); setMessage(""); setError(""); setStandaloneLink(false); }} className="h-auto p-0 font-semibold">Vrati se na administratorsku prijavu</Button>
+              </div>
+            ) : initialMode === "signin" ? (
+              <div className="mt-5 border-t border-border pt-4 text-center text-sm text-muted-foreground">
+                Komitent ste? <Link href="/" className="font-semibold text-primary hover:underline">Prijava emailom i PIB-om</Link>
+              </div>
+            ) : null}
           </div>
-          <Link href="/demo" className="mt-4 flex min-h-12 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold text-foreground transition-colors hover:bg-muted">Pogledajte demonstracioni primer <ArrowRight size={16} /></Link>
-          <p className="mt-5 text-center text-[11px] leading-5 text-muted-foreground">Pristup komitenta važi samo za agregate dodeljene njegovom kartonu.</p>
+          {initialMode === "client" ? <p className="mt-5 text-center text-[11px] leading-5 text-muted-foreground">Pristup komitenta važi samo za agregate dodeljene njegovom kartonu.</p> : null}
         </div>
       </section>
     </main>
