@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { desc } from "drizzle-orm";
-import { ArrowUpRight, Building2, Mail, MapPin, Phone, UserRoundPlus } from "lucide-react";
+import { ArrowUpRight, Building2, Mail, MapPin, Phone, Trash2, UserRoundPlus } from "lucide-react";
 
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import { createClientAction, updateClientAction } from "../actions";
+import { deleteClientAction } from "../client-delete-action";
 
 const statusMessages: Record<string, string> = {
   created: "Komitent je dodat u evidenciju. Može da se prijavi emailom i PIB-om.",
@@ -16,6 +17,10 @@ const statusMessages: Record<string, string> = {
   "already-linked": "Komitent već ima povezan nalog.",
   "no-verified-account": "Nije pronađen registrovan nalog sa potvrđenom email adresom koja se poklapa sa komitentom.",
   "account-used": "Ovaj korisnički nalog je već povezan sa drugim komitentom.",
+  deleted: "Komitent i njegovi povezani podaci su trajno obrisani.",
+  "delete-confirmation": "Za trajno brisanje potrebno je da označiš potvrdu.",
+  "delete-error": "Brisanje nije uspelo. Podaci nisu potvrđeno obrisani; proveri serverski zapis i pokušaj ponovo.",
+  "protected-account": "Ovaj karton je povezan sa administratorskim nalogom i ne može se obrisati ovom opcijom.",
 };
 
 export default async function AdminClientsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
@@ -71,7 +76,7 @@ export default async function AdminClientsPage({ searchParams }: { searchParams:
                   {client.phone ? <p className="flex items-start gap-2 text-muted-foreground"><Phone size={15} className="mt-0.5 shrink-0" />{client.phone}</p> : null}
                   {client.address ? <p className="flex items-start gap-2 text-muted-foreground"><MapPin size={15} className="mt-0.5 shrink-0" />{client.address}</p> : null}
                   <p><span className="rounded-md border border-border px-2 py-1 text-xs">{client.userId ? "Nalog je već povezan" : "Nalog će se otvoriti pri prvoj prijavi"}</span></p>
-                <p className="mt-2 text-xs leading-5 text-muted-foreground">Komitent se prijavljuje emailom i PIB-om unetim u ovaj karton. Videće samo agregate koji su mu dodeljeni.</p>
+                  <p className="mt-2 text-xs leading-5 text-muted-foreground">Komitent se prijavljuje emailom i PIB-om unetim u ovaj karton. Videće samo agregate koji su mu dodeljeni.</p>
                 </div>
 
                 <details className="mt-4 rounded-md border border-border p-3">
@@ -87,6 +92,18 @@ export default async function AdminClientsPage({ searchParams }: { searchParams:
                     <label className="grid gap-1.5 text-sm"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} defaultValue={client.notes ?? ""} className="rounded-md border border-input bg-background px-3 py-2" /></label>
                     <button type="submit" className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Sačuvaj izmene</button>
                   </form>
+                </details>
+
+                <details className="mt-3 rounded-md border border-destructive/30 p-3">
+                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-destructive"><Trash2 size={16} /> Trajno obriši komitenta</summary>
+                  <div className="mt-3 space-y-3">
+                    <p className="text-sm leading-6 text-muted-foreground">Ova radnja je nepovratna. Briše karton komitenta, sve agregate dodeljene tom komitentu, njihove servisne zapise i povezana obaveštenja, kao i povezani portal nalog i sesije.</p>
+                    <form action={deleteClientAction} className="grid gap-3">
+                      <input type="hidden" name="clientId" value={client.id} />
+                      <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" name="confirmDelete" value="DELETE" required /><span>Razumem da će podaci i istorija servisa biti trajno obrisani.</span></label>
+                      <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-destructive px-3 text-sm font-semibold text-white hover:opacity-90"><Trash2 size={15} /> Obriši komitenta i povezane podatke</button>
+                    </form>
+                  </div>
                 </details>
               </article>
             ))}
