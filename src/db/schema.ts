@@ -19,8 +19,6 @@ export const user = pgTable(
     email: text("email").notNull(),
     emailVerified: boolean("email_verified").notNull().default(false),
     image: text("image"),
-    // New accounts are clients by default. Promote the owner's account manually
-    // after applying database/02-promote-admin.sql.
     role: text("role").notNull().default("client"),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -83,7 +81,6 @@ export const verification = pgTable(
   (t) => [index("verification_identifier_idx").on(t.identifier)],
 );
 
-/** A business/person managed from the administrator's master panel. */
 export const clients = pgTable(
   "clients",
   {
@@ -95,7 +92,6 @@ export const clients = pgTable(
     pib: text("pib"),
     address: text("address"),
     notes: text("notes"),
-    // Null until a verified Better Auth account is explicitly linked by admin.
     userId: text("user_id").references(() => user.id, { onDelete: "set null" }),
     createdAt: timestamp("created_at").notNull().defaultNow(),
     updatedAt: timestamp("updated_at").notNull().defaultNow(),
@@ -125,17 +121,14 @@ export const generators = pgTable(
   "generators",
   {
     id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
-    // Original creator/owner field is preserved for backward compatibility.
     userId: text("user_id")
       .notNull()
       .references(() => user.id, { onDelete: "cascade" }),
-    // Null means the generator belongs to J&B POWER; otherwise it belongs to this client.
     clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }),
     name: text("name").notNull(),
     manufacturer: text("manufacturer").notNull(),
     model: text("model").notNull(),
     serialNumber: text("serial_number").notNull(),
-    // Additional technical data from the equipment card.
     controller: text("controller"),
     generatorSerialNumber: text("generator_serial_number"),
     operatingMode: text("operating_mode").notNull().default("auto"),
@@ -159,6 +152,52 @@ export const generators = pgTable(
     index("generators_user_idx").on(t.userId),
     index("generators_client_idx").on(t.clientId),
   ],
+);
+
+/** Client-submitted service requests; snapshots keep history readable after profile edits. */
+export const serviceRequests = pgTable(
+  "service_requests",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    clientId: text("client_id").references(() => clients.id, { onDelete: "set null" }),
+    generatorId: text("generator_id").references(() => generators.id, { onDelete: "set null" }),
+    clientNameSnapshot: text("client_name_snapshot").notNull(),
+    clientEmailSnapshot: text("client_email_snapshot").notNull(),
+    generatorNameSnapshot: text("generator_name_snapshot").notNull(),
+    generatorSerialSnapshot: text("generator_serial_snapshot").notNull(),
+    submittedByUserId: text("submitted_by_user_id"),
+    submittedByName: text("submitted_by_name").notNull(),
+    submittedByEmail: text("submitted_by_email").notNull(),
+    subject: text("subject").notNull(),
+    description: text("description").notNull(),
+    urgency: text("urgency").notNull().default("normal"),
+    status: text("status").notNull().default("new"),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+    updatedAt: timestamp("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    index("service_requests_client_idx").on(t.clientId),
+    index("service_requests_generator_idx").on(t.generatorId),
+    index("service_requests_status_idx").on(t.status),
+    index("service_requests_updated_idx").on(t.updatedAt),
+  ],
+);
+
+export const serviceRequestMessages = pgTable(
+  "service_request_messages",
+  {
+    id: text("id").primaryKey().$defaultFn(() => crypto.randomUUID()),
+    requestId: text("request_id")
+      .notNull()
+      .references(() => serviceRequests.id, { onDelete: "cascade" }),
+    authorUserId: text("author_user_id"),
+    authorName: text("author_name").notNull(),
+    authorEmail: text("author_email").notNull(),
+    authorRole: text("author_role").notNull(),
+    message: text("message").notNull(),
+    createdAt: timestamp("created_at").notNull().defaultNow(),
+  },
+  (t) => [index("service_request_messages_request_idx").on(t.requestId)],
 );
 
 export const generatorRelations = relations(generators, ({ one, many }) => ({

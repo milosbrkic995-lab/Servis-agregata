@@ -1,11 +1,11 @@
 "use server";
 
-import { and, eq, ne } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { db } from "@/db";
-import { clients, generators, user as authUser } from "@/db/schema";
+import { clients, generators, session, user as authUser } from "@/db/schema";
 import { requireAdmin } from "@/lib/permissions";
 
 function value(formData: FormData, name: string): string {
@@ -13,10 +13,10 @@ function value(formData: FormData, name: string): string {
 }
 
 /**
- * Permanently deletes a client, all generators assigned to that client,
- * their service history and notifications (via the existing FK cascades),
- * plus the linked non-admin portal account and its sessions.
- * A server-side confirmation is required; never trust the checkbox alone.
+ * Deletes the client profile but deliberately preserves assigned generators,
+ * their service history, and request history. Equipment is detached first.
+ * The linked portal user's sessions are revoked; the user row is kept so no
+ * unrelated user-owned history is cascaded away.
  */
 export async function deleteClientAction(formData: FormData) {
   await requireAdmin();
@@ -48,20 +48,17 @@ export async function deleteClientAction(formData: FormData) {
 
   try {
     await db.transaction(async (tx) => {
-      // Delete assigned machines first; database FK cascades remove each
-      // machine's service history and generator-linked notifications.
-      await tx.delete(generators).where(eq(generators.clientId, clientId));
+      // Never delete generators or their service_records from this action.
+      await tx.update(generators)
+        .set({ clientId: null, updatedAt: new Date() })
+        .where(eq(generators.clientId, clientId));
 
-      // Remove the profile before its portal user, so nothing can be relinked
-      // to a deleted client in the middle of the transaction.
+      // service_requests.client_id uses ON DELETE SET NULL and stores snapshots.
       await tx.delete(clients).where(eq(clients.id, clientId));
 
-      // Deleting the linked non-admin user removes its Better Auth accounts,
-      // sessions, preferences and any remaining user-owned records by FK cascade.
+      // Stop existing sessions without deleting the auth user and its other history.
       if (client.userId) {
-        await tx
-          .delete(authUser)
-          .where(and(eq(authUser.id, client.userId), ne(authUser.role, "admin")));
+        await tx.delete(session).where(eq(session.userId, client.userId));
       }
     });
   } catch (error) {
@@ -73,6 +70,7 @@ export async function deleteClientAction(formData: FormData) {
   revalidatePath("/admin/clients");
   revalidatePath("/admin/generators");
   revalidatePath("/admin/work-orders");
+  revalidatePath("/admin/service-requests");
   revalidatePath("/dashboard");
   redirect("/admin/clients?status=deleted");
 }

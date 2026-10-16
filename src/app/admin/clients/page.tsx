@@ -1,122 +1,40 @@
 import Link from "next/link";
-import { desc } from "drizzle-orm";
-import { ArrowUpRight, Building2, Mail, MapPin, Phone, Trash2, UserRoundPlus } from "lucide-react";
-
+import { desc, ilike, or } from "drizzle-orm";
+import { ArrowDownToLine, ArrowUpRight, Building2, Mail, MapPin, Phone, Trash2, UserRoundPlus } from "lucide-react";
 import { db } from "@/db";
 import { clients } from "@/db/schema";
 import { createClientAction, updateClientAction } from "../actions";
 import { deleteClientAction } from "../client-delete-action";
 
-const statusMessages: Record<string, string> = {
-  created: "Komitent je dodat u evidenciju. Može da se prijavi emailom i PIB-om.",
-  updated: "Podaci o komitentu su sačuvani.",
-  linked: "Nalog je povezan sa komitentom.",
-  invalid: "Podaci nisu ispravni. Proveri naziv, email adresu i PIB firme.",
-  "invalid-name": "Unesi naziv komitenta (najviše 180 znakova).",
-  "invalid-email": "Email nije ispravan. Unesi adresu u obliku firma@primer.rs.",
-  "invalid-pib": "PIB mora da sadrži tačno 9 cifara. Razmaci, tačke i crtice se ignorišu.",
-  "duplicate-or-error": "Komitent sa tom email adresom možda već postoji ili je došlo do greške. Proveri evidenciju i pokušaj ponovo.",
-  "not-found": "Komitent nije pronađen.",
-  "already-linked": "Komitent već ima povezan nalog.",
-  "no-verified-account": "Nije pronađen registrovan nalog sa potvrđenom email adresom koja se poklapa sa komitentom.",
-  "account-used": "Ovaj korisnički nalog je već povezan sa drugim komitentom.",
-  deleted: "Komitent i njegovi povezani podaci su trajno obrisani.",
-  "delete-confirmation": "Za trajno brisanje potrebno je da označiš potvrdu.",
-  "delete-error": "Brisanje nije uspelo. Podaci nisu potvrđeno obrisani; proveri serverski zapis i pokušaj ponovo.",
-  "protected-account": "Ovaj karton je povezan sa administratorskim nalogom i ne može se obrisati ovom opcijom.",
+const statusMessages: Record<string,string> = {
+  created: "Komitent je dodat u evidenciju. Može da se prijavi emailom i PIB-om.", updated: "Podaci o komitentu su sačuvani.",
+  invalid: "Podaci nisu ispravni. Proveri naziv, email adresu i PIB firme.", "invalid-name": "Unesi naziv komitenta (najviše 180 znakova).",
+  "invalid-email": "Email nije ispravan. Unesi adresu u obliku firma@primer.rs.", "invalid-pib": "PIB mora da sadrži tačno 9 cifara. Razmaci, tačke i crtice se ignorišu.",
+  "duplicate-or-error": "Komitent sa tom email adresom možda već postoji ili je došlo do greške. Proveri evidenciju i pokušaj ponovo.", "not-found": "Komitent nije pronađen.",
+  deleted: "Karton komitenta je obrisan. Agregati i servisna istorija su sačuvani i ostali su bez dodele.", "delete-confirmation": "Za trajno brisanje potrebno je da označiš potvrdu.",
+  "delete-error": "Brisanje nije uspelo. Podaci nisu potvrđeno obrisani; proveri serverski zapis i pokušaj ponovo.", "protected-account": "Ovaj karton je povezan sa administratorskim nalogom i ne može se obrisati ovom opcijom.",
 };
-
-export default async function AdminClientsPage({ searchParams }: { searchParams: Promise<{ status?: string }> }) {
-  const { status } = await searchParams;
-  const rows = await db.select().from(clients).orderBy(desc(clients.createdAt));
-
-  return (
-    <div className="space-y-6">
-      <section>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Master panel</p>
-        <h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Komitenti</h2>
-        <p className="mt-2 text-sm text-muted-foreground">Unesi komitenta i njegov PIB. Pri prvoj prijavi koristiće email i PIB; pristup se automatski veže za ovaj karton.</p>
-      </section>
-
-      {status && statusMessages[status] ? <p role="status" className="rounded-md border border-border bg-muted/50 p-3 text-sm">{statusMessages[status]}</p> : null}
-
-      <section className="rounded-lg border border-border bg-card p-4 sm:p-6">
-        <div className="mb-4 flex items-center gap-2">
-          <UserRoundPlus size={19} className="text-primary" />
-          <div><h3 className="font-semibold">Dodaj komitenta</h3><p className="mt-1 text-xs text-muted-foreground">Unesi podatke koje će komitent koristiti za prijavu u portal.</p></div>
-        </div>
-        <form action={createClientAction} className="grid gap-3 sm:grid-cols-2">
-          <Field name="name" label="Ime i prezime / naziv" required placeholder="Steva Stebanović" />
-          <Field name="email" label="Email" type="email" required placeholder="steva@primer.rs" />
-          <Field name="company" label="Firma" placeholder="Naziv firme (opciono)" />
-          <Field name="phone" label="Telefon" placeholder="Telefon (opciono)" />
-          <Field name="pib" label="PIB firme" required placeholder="PIB firme" />
-          <Field name="address" label="Adresa / lokacija" placeholder="Adresa (opciono)" />
-          <label className="grid gap-1.5 text-sm sm:col-span-2"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} className="rounded-md border border-input bg-background px-3 py-2" placeholder="Interna napomena (opciono)" /></label>
-          <div className="sm:col-span-2"><button className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90" type="submit">Sačuvaj komitenta</button></div>
-        </form>
-      </section>
-
-      <section>
-        <div className="mb-3 flex items-center justify-between gap-3"><h3 className="font-semibold">Evidencija komitenata</h3><span className="rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground">{rows.length} komitenata</span></div>
-        {rows.length ? (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {rows.map((client) => (
-              <article key={client.id} className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-4 transition-colors hover:border-primary/40 sm:p-5">
-                <Link href={`/admin/clients/${client.id}`} aria-label={`Otvori karton komitenta ${client.name}`} className="group -m-2 mb-2 block rounded-lg p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary"><Building2 size={20} /></span>
-                      <div className="min-w-0"><h4 className="break-words font-semibold group-hover:text-primary">{client.name}</h4>{client.company ? <p className="mt-1 break-words text-sm text-muted-foreground">{client.company}</p> : null}</div>
-                    </div>
-                    <ArrowUpRight size={18} className="mt-1 shrink-0 text-muted-foreground group-hover:text-primary" />
-                  </div>
-                  <span className="mt-3 inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Otvori karton i agregate →</span>
-                </Link>
-
-                <div className="mt-3 space-y-2 border-t border-border pt-3 text-sm">
-                  <p className="flex items-start gap-2 break-all text-muted-foreground"><Mail size={15} className="mt-0.5 shrink-0" />{client.email}</p>
-                  {client.phone ? <p className="flex items-start gap-2 text-muted-foreground"><Phone size={15} className="mt-0.5 shrink-0" />{client.phone}</p> : null}
-                  {client.address ? <p className="flex items-start gap-2 text-muted-foreground"><MapPin size={15} className="mt-0.5 shrink-0" />{client.address}</p> : null}
-                  <p><span className="rounded-md border border-border px-2 py-1 text-xs">{client.userId ? "Nalog je već povezan" : "Nalog će se otvoriti pri prvoj prijavi"}</span></p>
-                  <p className="mt-2 text-xs leading-5 text-muted-foreground">Komitent se prijavljuje emailom i PIB-om unetim u ovaj karton. Videće samo agregate koji su mu dodeljeni.</p>
-                </div>
-
-                <details className="mt-4 rounded-md border border-border p-3">
-                  <summary className="cursor-pointer text-sm font-medium">Izmeni podatke komitenta</summary>
-                  <form action={updateClientAction} className="mt-3 grid gap-3">
-                    <input type="hidden" name="clientId" value={client.id} />
-                    <Field name="name" label="Ime / naziv" required defaultValue={client.name} />
-                    <Field name="email" label="Email" type="email" required defaultValue={client.email} />
-                    <Field name="company" label="Firma" defaultValue={client.company ?? ""} />
-                    <Field name="phone" label="Telefon" defaultValue={client.phone ?? ""} />
-                    <Field name="pib" label="PIB firme" required defaultValue={client.pib ?? ""} />
-                    <Field name="address" label="Adresa" defaultValue={client.address ?? ""} />
-                    <label className="grid gap-1.5 text-sm"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} defaultValue={client.notes ?? ""} className="rounded-md border border-input bg-background px-3 py-2" /></label>
-                    <button type="submit" className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Sačuvaj izmene</button>
-                  </form>
-                </details>
-
-                <details className="mt-3 rounded-md border border-destructive/30 p-3">
-                  <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-destructive"><Trash2 size={16} /> Trajno obriši komitenta</summary>
-                  <div className="mt-3 space-y-3">
-                    <p className="text-sm leading-6 text-muted-foreground">Ova radnja je nepovratna. Briše karton komitenta, sve agregate dodeljene tom komitentu, njihove servisne zapise i povezana obaveštenja, kao i povezani portal nalog i sesije.</p>
-                    <form action={deleteClientAction} className="grid gap-3">
-                      <input type="hidden" name="clientId" value={client.id} />
-                      <label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" name="confirmDelete" value="DELETE" required /><span>Razumem da će podaci i istorija servisa biti trajno obrisani.</span></label>
-                      <button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-destructive px-3 text-sm font-semibold text-white hover:opacity-90"><Trash2 size={15} /> Obriši komitenta i povezane podatke</button>
-                    </form>
-                  </div>
-                </details>
-              </article>
-            ))}
-          </div>
-        ) : <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">Još nema komitenata. Unesi prvog komitenta u formularu iznad.</div>}
-      </section>
-    </div>
-  );
+type Props = { searchParams: Promise<{ status?:string; q?:string }> };
+export default async function AdminClientsPage({ searchParams }: Props) {
+  const { status, q = "" } = await searchParams;
+  const search = q.trim().slice(0,120); const pattern = `%${search}%`;
+  const filter = search ? or(ilike(clients.name,pattern),ilike(clients.company,pattern),ilike(clients.email,pattern),ilike(clients.phone,pattern),ilike(clients.pib,pattern),ilike(clients.address,pattern)) : undefined;
+  const rows = await db.select().from(clients).where(filter).orderBy(desc(clients.createdAt));
+  return <div className="space-y-6">
+    <section className="flex flex-wrap items-end justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Master panel</p><h2 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Komitenti</h2><p className="mt-2 text-sm text-muted-foreground">Upravljaj kartonima komitenata i prati njihove agregate.</p></div><Link href="/admin/exports/clients" className="inline-flex min-h-10 items-center gap-2 rounded-md border border-border px-3 text-sm font-semibold hover:bg-muted"><ArrowDownToLine size={16}/> Izvezi CSV</Link></section>
+    {status && statusMessages[status] ? <p role="status" className="rounded-md border border-border bg-muted/50 p-3 text-sm">{statusMessages[status]}</p> : null}
+    <section className="rounded-lg border border-border bg-card p-4 sm:p-6"><div className="mb-4 flex items-center gap-2"><UserRoundPlus size={19} className="text-primary"/><div><h3 className="font-semibold">Dodaj komitenta</h3><p className="mt-1 text-xs text-muted-foreground">Unesi naziv, email i PIB koji će koristiti za prijavu.</p></div></div>
+      <form action={createClientAction} className="grid gap-3 sm:grid-cols-2"><Field name="name" label="Ime i prezime / naziv" required placeholder="Naziv komitenta"/><Field name="email" label="Email" type="email" required placeholder="kontakt@firma.rs"/><Field name="company" label="Firma" placeholder="Naziv firme (opciono)"/><Field name="phone" label="Telefon" placeholder="Telefon (opciono)"/><Field name="pib" label="PIB firme" required placeholder="9 cifara"/><Field name="address" label="Adresa / lokacija" placeholder="Adresa (opciono)"/><label className="grid gap-1.5 text-sm sm:col-span-2"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} className="rounded-md border border-input bg-background px-3 py-2" placeholder="Interna napomena (opciono)"/></label><div className="sm:col-span-2"><button className="inline-flex min-h-11 items-center gap-2 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground hover:opacity-90" type="submit">Sačuvaj komitenta</button></div></form>
+    </section>
+    <section className="space-y-3"><div className="flex flex-wrap items-end justify-between gap-3"><div><h3 className="font-semibold">Evidencija komitenata</h3><p className="mt-1 text-xs text-muted-foreground">Pronađeno: {rows.length}{search ? ` za „${search}”` : ""}</p></div></div>
+      <form method="get" className="flex flex-wrap gap-2 rounded-lg border border-border bg-card p-3"><input type="search" name="q" defaultValue={search} placeholder="Pretraži naziv, firmu, email, PIB, telefon..." className="min-h-10 min-w-[220px] flex-1 rounded-md border border-input bg-background px-3 text-sm"/><button type="submit" className="min-h-10 rounded-md bg-primary px-4 text-sm font-semibold text-primary-foreground">Pretraži</button><Link href="/admin/clients" className="inline-flex min-h-10 items-center px-3 text-sm text-muted-foreground hover:text-foreground">Poništi</Link></form>
+      {rows.length ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{rows.map((client)=><article key={client.id} className="flex min-w-0 flex-col rounded-xl border border-border bg-card p-4 sm:p-5">
+        <Link href={`/admin/clients/${client.id}`} aria-label={`Otvori karton komitenta ${client.name}`} className="group -m-2 mb-2 block rounded-lg p-2 outline-none focus-visible:ring-2 focus-visible:ring-primary"><div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-3"><span className="flex size-11 shrink-0 items-center justify-center rounded-lg border border-primary/15 bg-primary/5 text-primary"><Building2 size={20}/></span><div className="min-w-0"><h4 className="break-words font-semibold group-hover:text-primary">{client.name}</h4>{client.company ? <p className="mt-1 break-words text-sm text-muted-foreground">{client.company}</p> : null}</div></div><ArrowUpRight size={18} className="mt-1 shrink-0 text-muted-foreground group-hover:text-primary"/></div><span className="mt-3 inline-flex min-h-9 items-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Otvori karton i agregate →</span></Link>
+        <div className="mt-3 space-y-2 border-t border-border pt-3 text-sm"><p className="flex items-start gap-2 break-all text-muted-foreground"><Mail size={15} className="mt-0.5 shrink-0"/>{client.email}</p>{client.phone ? <p className="flex items-start gap-2 text-muted-foreground"><Phone size={15} className="mt-0.5 shrink-0"/>{client.phone}</p> : null}{client.address ? <p className="flex items-start gap-2 text-muted-foreground"><MapPin size={15} className="mt-0.5 shrink-0"/>{client.address}</p> : null}<p><span className="rounded-md border border-border px-2 py-1 text-xs">{client.userId ? "Nalog je već povezan" : "Nalog će se otvoriti pri prvoj prijavi"}</span></p></div>
+        <details className="mt-4 rounded-md border border-border p-3"><summary className="cursor-pointer text-sm font-medium">Izmeni podatke komitenta</summary><form action={updateClientAction} className="mt-3 grid gap-3"><input type="hidden" name="clientId" value={client.id}/><Field name="name" label="Ime / naziv" required defaultValue={client.name}/><Field name="email" label="Email" type="email" required defaultValue={client.email}/><Field name="company" label="Firma" defaultValue={client.company ?? ""}/><Field name="phone" label="Telefon" defaultValue={client.phone ?? ""}/><Field name="pib" label="PIB firme" required defaultValue={client.pib ?? ""}/><Field name="address" label="Adresa" defaultValue={client.address ?? ""}/><label className="grid gap-1.5 text-sm"><span className="font-medium">Napomene</span><textarea name="notes" rows={2} maxLength={2000} defaultValue={client.notes ?? ""} className="rounded-md border border-input bg-background px-3 py-2"/></label><button type="submit" className="inline-flex min-h-10 items-center justify-center rounded-md bg-primary px-3 text-sm font-semibold text-primary-foreground">Sačuvaj izmene</button></form></details>
+        <details className="mt-3 rounded-md border border-destructive/30 p-3"><summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-semibold text-destructive"><Trash2 size={16}/> Trajno obriši karton komitenta</summary><div className="mt-3 space-y-3"><p className="text-sm leading-6 text-muted-foreground">Briše se samo karton komitenta i prekidaju se njegove aktivne sesije. Svi agregati ostaju u registru bez dodele, njihova servisna istorija ostaje sačuvana, a postojeći zahtevi ostaju u evidenciji. Radnja je nepovratna.</p><form action={deleteClientAction} className="grid gap-3"><input type="hidden" name="clientId" value={client.id}/><label className="flex items-start gap-2 text-sm"><input className="mt-1" type="checkbox" name="confirmDelete" value="DELETE" required/><span>Razumem da se uklanja karton, ali se oprema i servisna istorija čuvaju.</span></label><button type="submit" className="inline-flex min-h-10 items-center justify-center gap-2 rounded-md bg-destructive px-3 text-sm font-semibold text-white hover:opacity-90"><Trash2 size={15}/> Obriši karton komitenta</button></form></div></details>
+      </article>)}</div> : <div className="rounded-lg border border-dashed border-border bg-card p-10 text-center text-sm text-muted-foreground">{search ? "Nema komitenata koji odgovaraju pretrazi." : "Još nema komitenata. Unesi prvog komitenta u formularu iznad."}</div>}
+    </section>
+  </div>;
 }
-
-function Field({ name, label, required, type = "text", placeholder, defaultValue }: { name: string; label: string; required?: boolean; type?: string; placeholder?: string; defaultValue?: string }) {
-  return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}{required ? " *" : ""}</span><input className="min-h-10 rounded-md border border-input bg-background px-3" name={name} type={type} required={required} maxLength={254} placeholder={placeholder} defaultValue={defaultValue} /></label>;
-}
+function Field({ name,label,required,type="text",placeholder,defaultValue }: {name:string;label:string;required?:boolean;type?:string;placeholder?:string;defaultValue?:string}) { return <label className="grid gap-1.5 text-sm"><span className="font-medium">{label}{required ? " *" : ""}</span><input className="min-h-10 rounded-md border border-input bg-background px-3" name={name} type={type} required={required} maxLength={254} placeholder={placeholder} defaultValue={defaultValue}/></label>; }
