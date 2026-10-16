@@ -18,8 +18,24 @@ export default async function AdminGeneratorsPage({ searchParams }: { searchPara
   const { status } = await searchParams;
   const [clientRows, generatorRows] = await Promise.all([
     db.select({ id: clients.id, name: clients.name, email: clients.email }).from(clients).orderBy(asc(clients.name)),
-    db.select({ id: generators.id, name: generators.name, manufacturer: generators.manufacturer, model: generators.model, serialNumber: generators.serialNumber, powerValue: generators.powerValue, powerUnit: generators.powerUnit, location: generators.location, clientId: generators.clientId, clientName: clients.name })
-      .from(generators).leftJoin(clients, eq(generators.clientId, clients.id)).orderBy(asc(generators.name)),
+    db.select({
+  id: generators.id,
+  name: generators.name,
+  manufacturer: generators.manufacturer,
+  model: generators.model,
+  serialNumber: generators.serialNumber,
+  powerValue: generators.powerValue,
+  powerUnit: generators.powerUnit,
+  location: generators.location,
+  commissionedAt: generators.commissionedAt,
+  intervalMonths: generators.intervalMonths,
+  currentHours: generators.currentHours,
+  clientId: generators.clientId,
+  clientName: clients.name,
+})
+  .from(generators)
+  .leftJoin(clients, eq(generators.clientId, clients.id))
+  .orderBy(asc(generators.name)),
   ]);
   return (
     <div className="space-y-6">
