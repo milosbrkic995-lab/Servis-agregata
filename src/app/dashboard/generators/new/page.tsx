@@ -1,24 +1,6 @@
-import { GeneratorForm } from "@/components/generators/generator-form";
-import { dateOnly } from "@/lib/generator-utils";
-import type { GeneratorFormValues } from "@/lib/generator-types";
+import { redirect } from "next/navigation";
 
+// Client portal is intentionally read-only. Administrators add equipment in /admin/generators.
 export default function NewGeneratorPage() {
-  const initialValues: GeneratorFormValues = {
-    name: "",
-    manufacturer: "",
-    model: "",
-    serialNumber: "",
-    powerValue: "",
-    powerUnit: "kVA",
-    location: "",
-    commissionedAt: dateOnly(),
-    intervalType: "calendar",
-    intervalMonths: "6",
-    intervalHours: "500",
-    currentHours: "0",
-    reminderDays: "7",
-    notificationsEnabled: true,
-  };
-
-  return <GeneratorForm initialValues={initialValues} />;
+  redirect("/dashboard");
 }

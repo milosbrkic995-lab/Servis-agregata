@@ -4,6 +4,8 @@ export type ServiceStatus = "overdue" | "today" | "upcoming" | "current";
 
 export interface GeneratorRecord {
   id: string;
+  /** Present on database-backed generator rows; null means company-owned/unassigned. */
+  clientId?: string | null;
   name: string;
   manufacturer: string;
   model: string;

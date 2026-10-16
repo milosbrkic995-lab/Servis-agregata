@@ -3,10 +3,10 @@ import "server-only";
 import { and, desc, eq, isNull } from "drizzle-orm";
 
 import { db } from "@/db";
-import { appNotifications, generators, serviceRecords, userSettings } from "@/db/schema";
+import { appNotifications, clients, generators, serviceRecords, userSettings } from "@/db/schema";
 import { sendEmail } from "@/lib/email";
-import { requireUser } from "@/lib/auth";
 import { getServiceStatus, serviceCountdown } from "@/lib/generator-utils";
+import { requireUser } from "@/lib/auth";
 import type {
   AppNotification,
   GeneratorRecord,
@@ -55,11 +55,21 @@ function escapeHtml(value: string): string {
   });
 }
 
+/** Client portal data is always scoped through clients.userId -> generators.clientId. */
 export async function getDashboardData() {
-  const user = await requireUser();
+  const currentUser = await requireUser();
+  const linkedClients = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.userId, currentUser.id))
+    .limit(1);
+  const clientId = linkedClients[0]?.id;
+
   const [rows, settingsRows] = await Promise.all([
-    db.select().from(generators).where(eq(generators.userId, user.id)).orderBy(desc(generators.updatedAt)),
-    db.select().from(userSettings).where(eq(userSettings.userId, user.id)).limit(1),
+    clientId
+      ? db.select().from(generators).where(eq(generators.clientId, clientId)).orderBy(desc(generators.updatedAt))
+      : Promise.resolve([] as (typeof generators.$inferSelect)[]),
+    db.select().from(userSettings).where(eq(userSettings.userId, currentUser.id)).limit(1),
   ]);
   const settings: UserSettings = settingsRows[0]
     ? {
@@ -79,21 +89,19 @@ export async function getDashboardData() {
       const existing = await db
         .select({ id: appNotifications.id })
         .from(appNotifications)
-        .where(
-          and(
-            eq(appNotifications.userId, user.id),
-            eq(appNotifications.generatorId, generator.id),
-            eq(appNotifications.kind, "service"),
-            eq(appNotifications.dueDate, dueDate),
-          ),
-        )
+        .where(and(
+          eq(appNotifications.userId, currentUser.id),
+          eq(appNotifications.generatorId, generator.id),
+          eq(appNotifications.kind, "service"),
+          eq(appNotifications.dueDate, dueDate),
+        ))
         .limit(1);
       if (existing.length > 0) continue;
 
       const title = status === "overdue" ? "Servis je zakasnio" : status === "today" ? "Servis je na redu danas" : "Servis se približava";
       const body = `${generator.name} · ${serviceCountdown(mapped, today)}.`;
       await db.insert(appNotifications).values({
-        userId: user.id,
+        userId: currentUser.id,
         generatorId: generator.id,
         kind: "service",
         title,
@@ -101,9 +109,9 @@ export async function getDashboardData() {
         dueDate,
       });
 
-      if (settings.emailNotificationsEnabled && user.email) {
+      if (settings.emailNotificationsEnabled && currentUser.email) {
         await sendEmail({
-          to: user.email,
+          to: currentUser.email,
           subject: title,
           fromName: "Servisni dnevnik",
           html: `<p>${escapeHtml(title)}: <strong>${escapeHtml(generator.name)}</strong>.</p><p>${escapeHtml(body)}</p><p>Prijavite se u aplikaciju da biste pregledali detalje.</p>`,
@@ -113,47 +121,58 @@ export async function getDashboardData() {
   }
 
   return {
-    user: { name: user.name, email: user.email },
+    user: { name: currentUser.name, email: currentUser.email },
     generators: rows.map(mapGenerator),
     settings,
   };
 }
 
 export async function getGeneratorDetails(id: string) {
-  const user = await requireUser();
-  const [generatorRows, records] = await Promise.all([
-    db
-      .select()
-      .from(generators)
-      .where(and(eq(generators.id, id), eq(generators.userId, user.id)))
-      .limit(1),
-    db
-      .select()
-      .from(serviceRecords)
-      .where(and(eq(serviceRecords.generatorId, id), eq(serviceRecords.userId, user.id)))
-      .orderBy(desc(serviceRecords.completedAt)),
-  ]);
-  if (!generatorRows[0]) return null;
+  const currentUser = await requireUser();
+  const linkedClients = await db
+    .select({ id: clients.id })
+    .from(clients)
+    .where(eq(clients.userId, currentUser.id))
+    .limit(1);
+  const clientId = linkedClients[0]?.id;
+  if (!clientId) return null;
+
+  const generatorRows = await db
+    .select()
+    .from(generators)
+    .where(and(eq(generators.id, id), eq(generators.clientId, clientId)))
+    .limit(1);
+  const generator = generatorRows[0];
+  if (!generator) return null;
+
+  // Authorization is established above from the generator's clientId; include its
+  // full service history regardless of which staff account entered the record.
+  const records = await db
+    .select()
+    .from(serviceRecords)
+    .where(eq(serviceRecords.generatorId, generator.id))
+    .orderBy(desc(serviceRecords.completedAt));
+
   return {
-    generator: mapGenerator(generatorRows[0]),
+    generator: mapGenerator(generator),
     records: records.map(mapService),
   };
 }
 
 export async function getNotificationsForCurrentUser(): Promise<AppNotification[]> {
-  const user = await requireUser();
+  const currentUser = await requireUser();
   await getDashboardData();
   const rows = await db
     .select()
     .from(appNotifications)
-    .where(eq(appNotifications.userId, user.id))
+    .where(eq(appNotifications.userId, currentUser.id))
     .orderBy(desc(appNotifications.createdAt));
   return rows.map(mapNotification);
 }
 
 export async function getSettingsForCurrentUser(): Promise<UserSettings> {
-  const user = await requireUser();
-  const rows = await db.select().from(userSettings).where(eq(userSettings.userId, user.id)).limit(1);
+  const currentUser = await requireUser();
+  const rows = await db.select().from(userSettings).where(eq(userSettings.userId, currentUser.id)).limit(1);
   return rows[0]
     ? {
         remindersEnabled: rows[0].remindersEnabled,
@@ -163,11 +182,11 @@ export async function getSettingsForCurrentUser(): Promise<UserSettings> {
 }
 
 export async function getPendingBrowserNotifications(): Promise<AppNotification[]> {
-  const user = await requireUser();
+  const currentUser = await requireUser();
   const rows = await db
     .select()
     .from(appNotifications)
-    .where(and(eq(appNotifications.userId, user.id), isNull(appNotifications.browserNotifiedAt)))
+    .where(and(eq(appNotifications.userId, currentUser.id), isNull(appNotifications.browserNotifiedAt)))
     .orderBy(desc(appNotifications.createdAt));
   return rows.map(mapNotification);
 }
